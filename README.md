@@ -1,6 +1,6 @@
-# Moltbot Skills (formerly Clawdbot)
+# Moltbot Skills Library by Bankr & Community
 
-Public repository of skills for [Moltbot](https://github.com/BankrBot/moltbot-skills) — including first-party [Bankr](https://bankr.bot) skills and community-contributed skills from other providers.
+Public repository of skills for [Moltbot](https://github.com/BankrBot/moltbot-skills) (formerly Clawdbot) — including first-party [Bankr](https://bankr.bot) skills and community-contributed skills from other providers.
 
 ## Structure
 
