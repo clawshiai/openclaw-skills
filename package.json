@@ -1,0 +1,16 @@
+{
+  "name": "clawdpredict",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Prediction market based on Moltbook posts",
+  "main": "index.js",
+  "scripts": {
+    "fetch": "node scripts/fetch-posts.js",
+    "generate": "node scripts/generate-markets.js",
+    "serve": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "moltbook": "^1.1.0"
+  }
+}
