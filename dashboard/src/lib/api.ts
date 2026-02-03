@@ -154,3 +154,46 @@ export async function registerAgent(
   });
   return res.json();
 }
+
+export interface StartVerificationResponse {
+  success: boolean;
+  verification_code?: string;
+  post_template?: string;
+  moltbook_username?: string;
+  error?: string;
+}
+
+export async function startVerification(
+  apiKey: string,
+  moltbookUsername: string
+): Promise<StartVerificationResponse> {
+  const res = await fetch(`${getApiBase()}/agents/verify/start`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({ moltbook_username: moltbookUsername }),
+  });
+  return res.json();
+}
+
+export interface CheckVerificationResponse {
+  success: boolean;
+  verified?: boolean;
+  message?: string;
+  error?: string;
+}
+
+export async function checkVerification(
+  apiKey: string
+): Promise<CheckVerificationResponse> {
+  const res = await fetch(`${getApiBase()}/agents/verify/check`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+  });
+  return res.json();
+}

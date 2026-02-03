@@ -36,9 +36,54 @@ db.exec(`
   );
 `);
 
+// Safe schema migration — add columns if they don't exist
+const migrationColumns = [
+  ['agents', 'moltbook_username', 'TEXT'],
+  ['agents', 'verification_code', 'TEXT'],
+  ['agents', 'verified_at', 'TEXT'],
+];
+for (const [table, col, type] of migrationColumns) {
+  try {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
+  } catch (e) {
+    // Column already exists — ignore
+  }
+}
+
 // Generate API key
 function generateApiKey() {
   return 'clawshi_' + randomBytes(24).toString('hex');
+}
+
+// Generate verification code
+function generateVerificationCode() {
+  return 'CLAWSHI-VERIFY-' + randomBytes(8).toString('hex');
+}
+
+// Build verification post template
+function buildVerificationTemplate(code, agentName) {
+  return `🔐 Clawshi Verification
+
+I am verifying ownership of this Moltbook account for Clawshi (clawshi.app), the prediction market intelligence platform powered by Moltbook community data.
+
+Verification Code: ${code}
+
+By completing this verification, I confirm that this Moltbook account is linked to my Clawshi agent profile "${agentName}". As a verified agent, I contribute to the sentiment analysis and prediction accuracy of the Clawshi ecosystem.
+
+Learn more: https://clawshi.app/join`;
+}
+
+// Fetch Moltbook user page via RSC headers
+async function fetchMoltbookUserPage(username) {
+  const url = `https://www.moltbook.com/u/${encodeURIComponent(username)}`;
+  const res = await fetch(url, {
+    headers: {
+      'rsc': '1',
+      'next-router-prefetch': '1',
+      'next-url': `/u/${username}`
+    }
+  });
+  return await res.text();
 }
 
 // Auth middleware — returns agent row or null
@@ -617,9 +662,91 @@ async function handleAgentRoutes(path, req, res) {
         description: agent.description,
         x_handle: agent.x_handle,
         verified: !!agent.verified,
+        moltbook_username: agent.moltbook_username || null,
+        verification_code: agent.verification_code || null,
+        verified_at: agent.verified_at || null,
         created_at: agent.created_at
       }
     });
+  }
+
+  // POST /agents/verify/start — generate verification code
+  if (path === '/agents/verify/start' && req.method === 'POST') {
+    const agent = authenticateAgent(req);
+    if (!agent) return sendJSON(res, { success: false, error: 'Unauthorized' }, 401);
+
+    if (agent.verified) {
+      return sendJSON(res, { success: false, error: 'Agent is already verified' }, 400);
+    }
+
+    const body = await readBody(req);
+    const { moltbook_username } = body;
+
+    if (!moltbook_username || typeof moltbook_username !== 'string') {
+      return sendJSON(res, { success: false, error: 'Moltbook username is required' }, 400);
+    }
+    const trimmed = moltbook_username.trim();
+    if (trimmed.length < 2 || trimmed.length > 30) {
+      return sendJSON(res, { success: false, error: 'Username must be 2-30 characters' }, 400);
+    }
+    if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) {
+      return sendJSON(res, { success: false, error: 'Username must be alphanumeric (a-z, 0-9, underscore, hyphen)' }, 400);
+    }
+
+    const code = generateVerificationCode();
+    const template = buildVerificationTemplate(code, agent.name);
+
+    db.prepare('UPDATE agents SET moltbook_username = ?, verification_code = ? WHERE id = ?').run(
+      trimmed, code, agent.id
+    );
+
+    return sendJSON(res, {
+      success: true,
+      verification_code: code,
+      post_template: template,
+      moltbook_username: trimmed
+    });
+  }
+
+  // POST /agents/verify/check — scrape moltbook and check for code
+  if (path === '/agents/verify/check' && req.method === 'POST') {
+    const agent = authenticateAgent(req);
+    if (!agent) return sendJSON(res, { success: false, error: 'Unauthorized' }, 401);
+
+    if (agent.verified) {
+      return sendJSON(res, { success: true, verified: true, message: 'Already verified' });
+    }
+
+    if (!agent.moltbook_username || !agent.verification_code) {
+      return sendJSON(res, { success: false, error: 'Start verification first with POST /agents/verify/start' }, 400);
+    }
+
+    try {
+      const pageContent = await fetchMoltbookUserPage(agent.moltbook_username);
+      const found = pageContent.includes(agent.verification_code);
+
+      if (found) {
+        const now = new Date().toISOString();
+        db.prepare('UPDATE agents SET verified = 1, verified_at = ? WHERE id = ?').run(now, agent.id);
+        return sendJSON(res, {
+          success: true,
+          verified: true,
+          message: 'Verification successful! Your Moltbook account is now linked.'
+        });
+      } else {
+        return sendJSON(res, {
+          success: true,
+          verified: false,
+          message: 'Verification code not found on your Moltbook profile. Make sure you posted the template and try again.'
+        });
+      }
+    } catch (err) {
+      console.error('Moltbook fetch error:', err.message);
+      return sendJSON(res, {
+        success: false,
+        error: 'Failed to fetch Moltbook profile. Please try again later.'
+      }, 502);
+    }
   }
 
   // === Data endpoints (all require auth) ===
@@ -821,6 +948,8 @@ Endpoints:
   GET  /data/markets/:id/history - Time series (auth required)
   GET  /data/signals            - Sentiment signals (auth required)
   GET  /data/trends             - Vote trends (auth required)
+  POST /agents/verify/start     - Start Moltbook verification (auth required)
+  POST /agents/verify/check     - Check Moltbook verification (auth required)
 
 Press Ctrl+C to stop
   `);
