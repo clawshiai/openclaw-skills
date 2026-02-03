@@ -88,6 +88,7 @@ export interface LeaderboardAgent {
   last_active: string;
   avatar_url: string | null;
   x_handle: string | null;
+  verified?: boolean;
   favorite_category: string;
   categories: { category: string; count: number }[];
 }

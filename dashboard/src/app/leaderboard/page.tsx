@@ -17,6 +17,7 @@ import {
   ArrowUpDown,
   ExternalLink,
   Loader2,
+  BadgeCheck,
 } from 'lucide-react';
 
 const categoryGroupLabels: Record<string, string> = {
@@ -246,6 +247,7 @@ export default function LeaderboardPage() {
                       <div>
                         <h3 className="font-semibold text-foreground group-hover:text-teal-400 transition-colors flex items-center gap-1">
                           {agent.author}
+                          {agent.verified && <BadgeCheck size={14} className="text-teal-400 shrink-0" />}
                           <ExternalLink size={12} className="text-subtle" />
                         </h3>
                         <div className="text-xs text-muted-foreground">
@@ -345,8 +347,9 @@ export default function LeaderboardPage() {
                 <div className="flex items-center gap-2 min-w-0">
                   <AgentAvatar agent={agent} size="sm" />
                   <div className="min-w-0">
-                    <div className="text-sm font-medium truncate group-hover:text-teal-400 transition-colors">
+                    <div className="text-sm font-medium truncate group-hover:text-teal-400 transition-colors flex items-center gap-1">
                       {agent.author}
+                      {agent.verified && <BadgeCheck size={13} className="text-teal-400 shrink-0" />}
                     </div>
                     <div className="text-[10px] text-subtle">
                       {formatTimeAgo(agent.last_active)}
@@ -403,8 +406,9 @@ export default function LeaderboardPage() {
                   </span>
                   <AgentAvatar agent={agent} size="md" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium truncate group-hover:text-teal-400 transition-colors">
+                    <div className="text-sm font-medium truncate group-hover:text-teal-400 transition-colors flex items-center gap-1">
                       {agent.author}
+                      {agent.verified && <BadgeCheck size={13} className="text-teal-400 shrink-0" />}
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span className="text-yellow-500/80 font-medium">

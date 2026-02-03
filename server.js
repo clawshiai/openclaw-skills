@@ -276,6 +276,12 @@ const routes = {
       categoriesByAuthor[author].sort((a, b) => b.count - a.count);
     }
 
+    // Get verified agents (cross-reference with agents table)
+    const verifiedAgents = db.prepare(
+      'SELECT moltbook_username FROM agents WHERE verified = 1 AND moltbook_username IS NOT NULL'
+    ).all();
+    const verifiedSet = new Set(verifiedAgents.map(a => a.moltbook_username));
+
     sendJSON(res, {
       success: true,
       total_agents: agents.length,
@@ -292,6 +298,7 @@ const routes = {
         last_active: a.last_active,
         avatar_url: avatarMap[a.author_name]?.avatar_url || null,
         x_handle: avatarMap[a.author_name]?.x_handle || null,
+        verified: verifiedSet.has(a.author_name),
         favorite_category: categoriesByAuthor[a.author_name]?.[0]?.category || 'unknown',
         categories: categoriesByAuthor[a.author_name] || []
       }))
