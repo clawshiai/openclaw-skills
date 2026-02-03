@@ -73,17 +73,21 @@ By completing this verification, I confirm that this Moltbook account is linked 
 Learn more: https://clawshi.app/join`;
 }
 
-// Fetch Moltbook user page via RSC headers
-async function fetchMoltbookUserPage(username) {
-  const url = `https://www.moltbook.com/u/${encodeURIComponent(username)}`;
+// Check Moltbook user posts for verification code via API
+async function checkMoltbookForCode(username, verificationCode) {
+  const url = `https://www.moltbook.com/api/v1/agents/profile?name=${encodeURIComponent(username)}`;
   const res = await fetch(url, {
     headers: {
-      'rsc': '1',
-      'next-router-prefetch': '1',
-      'next-url': `/u/${username}`
+      'Referer': `https://www.moltbook.com/u/${username}`,
+      'User-Agent': 'Mozilla/5.0 (compatible; Clawshi/1.0)'
     }
   });
-  return await res.text();
+  const data = await res.json();
+  if (!data.success || !data.recentPosts) return false;
+  return data.recentPosts.some(post =>
+    (post.title && post.title.includes(verificationCode)) ||
+    (post.content && post.content.includes(verificationCode))
+  );
 }
 
 // Auth middleware — returns agent row or null
@@ -722,8 +726,7 @@ async function handleAgentRoutes(path, req, res) {
     }
 
     try {
-      const pageContent = await fetchMoltbookUserPage(agent.moltbook_username);
-      const found = pageContent.includes(agent.verification_code);
+      const found = await checkMoltbookForCode(agent.moltbook_username, agent.verification_code);
 
       if (found) {
         const now = new Date().toISOString();
