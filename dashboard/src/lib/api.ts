@@ -198,3 +198,62 @@ export async function checkVerification(
   });
   return res.json();
 }
+
+// Research types
+export interface MoltbookComment {
+  id: string;
+  content: string;
+  author: { name: string; karma: number };
+  upvotes: number;
+  created_at: string;
+}
+
+export interface Research {
+  id: number;
+  title: string;
+  summary: string | null;
+  content: string;
+  category: string;
+  tags: string[];
+  moltbook_post_id: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  suggested_market_ids?: number[];
+  suggested_markets?: {
+    id: number;
+    question: string;
+    category: string;
+    probabilities: { yes: number; no: number };
+    status: string;
+  }[];
+  comments?: MoltbookComment[];
+}
+
+export async function getResearchList(category?: string): Promise<Research[]> {
+  const params = category ? `?category=${category}` : '';
+  const res = await fetch(`${getApiBase()}/research${params}`, {
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error('Failed to fetch research');
+  const data = await res.json();
+  return data.research;
+}
+
+export async function getResearch(id: number): Promise<Research> {
+  const res = await fetch(`${getApiBase()}/research/${id}`, {
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error('Failed to fetch research');
+  const data = await res.json();
+  return data.research;
+}
+
+export async function getResearchComments(id: number): Promise<MoltbookComment[]> {
+  const res = await fetch(`${getApiBase()}/research/${id}/comments`, {
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error('Failed to fetch comments');
+  const data = await res.json();
+  return data.comments;
+}

@@ -24,6 +24,7 @@ export function Header() {
 
   const navItems = [
     { label: t('nav.markets'), href: '/' },
+    { label: t('nav.research'), href: '/research' },
     { label: t('nav.ideas'), href: '/ideas' },
     { label: t('nav.leaderboard'), href: '/leaderboard' },
     { label: t('nav.api'), href: '/api-docs' },

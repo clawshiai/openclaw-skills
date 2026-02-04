@@ -12,7 +12,7 @@ const db = new Database(join(__dirname, 'data/clawdpredict.db'));
 const PORT = process.env.PORT || 3456;
 
 // Contract config
-const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || '0x522148A71dC26b30305714cF4352B4987C05e898';
+const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || '0xC0de289DcE3b3c7D8cDf8B2A1Cd0411660A591FE';
 const CHAIN_ID = 84532;
 const CHAIN_NAME = 'Base Sepolia';
 const RPC_URL = 'https://sepolia.base.org';
@@ -75,6 +75,35 @@ db.exec(`
     status TEXT DEFAULT 'active',
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (agent_id) REFERENCES agents(id),
+    FOREIGN KEY (market_id) REFERENCES markets(id)
+  );
+`);
+
+// Create research table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS research (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    summary TEXT,
+    content TEXT NOT NULL,
+    category TEXT CHECK(category IN ('crypto', 'ai_agi', 'geopolitics', 'tech', 'moltbook', 'economics')),
+    tags TEXT,
+    moltbook_post_id TEXT,
+    status TEXT DEFAULT 'draft' CHECK(status IN ('draft', 'published')),
+    author_agent_id INTEGER,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (author_agent_id) REFERENCES agents(id)
+  );
+`);
+
+// Create research-markets junction table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS research_markets (
+    research_id INTEGER NOT NULL,
+    market_id INTEGER NOT NULL,
+    PRIMARY KEY (research_id, market_id),
+    FOREIGN KEY (research_id) REFERENCES research(id),
     FOREIGN KEY (market_id) REFERENCES markets(id)
   );
 `);
@@ -425,6 +454,42 @@ const routes = {
       vote_contributors: voteContributors.count,
       top_authors: topAuthors,
       generated_at: new Date().toISOString()
+    });
+  },
+
+  // GET /research - List all published research
+  '/research': (req, res) => {
+    const { params } = parseURL(req.url);
+    const category = params.get('category');
+    const sort = params.get('sort') || 'newest';
+
+    let sql = `
+      SELECT id, title, summary, category, tags, moltbook_post_id, status, created_at, updated_at
+      FROM research
+      WHERE status = 'published'
+    `;
+    const sqlParams = [];
+
+    if (category) {
+      sql += ' AND category = ?';
+      sqlParams.push(category);
+    }
+
+    sql += sort === 'oldest' ? ' ORDER BY created_at ASC' : ' ORDER BY created_at DESC';
+
+    const articles = db.prepare(sql).all(...sqlParams);
+
+    const getMarketIds = db.prepare('SELECT market_id FROM research_markets WHERE research_id = ?');
+    const result = articles.map(a => ({
+      ...a,
+      tags: a.tags ? JSON.parse(a.tags) : [],
+      suggested_market_ids: getMarketIds.all(a.id).map(r => r.market_id)
+    }));
+
+    sendJSON(res, {
+      success: true,
+      count: result.length,
+      research: result
     });
   }
 };
@@ -1164,6 +1229,203 @@ async function handleAgentRoutes(path, req, res) {
     return sendJSON(res, { success: true, trends });
   }
 
+  // GET /research/:id — public, fetch article + Moltbook comments + linked markets
+  const researchDetailMatch = path.match(/^\/research\/(\d+)$/);
+  if (researchDetailMatch && req.method === 'GET') {
+    const researchId = Number(researchDetailMatch[1]);
+    const article = db.prepare('SELECT * FROM research WHERE id = ?').get(researchId);
+    if (!article) return sendJSON(res, { success: false, error: 'Research not found' }, 404);
+
+    article.tags = article.tags ? JSON.parse(article.tags) : [];
+
+    // Get linked markets
+    const marketIds = db.prepare('SELECT market_id FROM research_markets WHERE research_id = ?').all(researchId);
+    const suggestedMarkets = marketIds.map(r => {
+      const m = db.prepare('SELECT id, question, category, yes_probability, no_probability, status FROM markets WHERE id = ?').get(r.market_id);
+      if (!m) return null;
+      return {
+        id: m.id,
+        question: m.question,
+        category: m.category,
+        probabilities: { yes: Math.round(m.yes_probability * 10) / 10, no: Math.round(m.no_probability * 10) / 10 },
+        status: m.status
+      };
+    }).filter(Boolean);
+
+    // Fetch Moltbook comments if moltbook_post_id exists
+    let comments = [];
+    if (article.moltbook_post_id) {
+      try {
+        const resp = await fetch(`https://www.moltbook.com/api/v1/posts/${article.moltbook_post_id}/comments?sort=top`);
+        if (resp.ok) {
+          const data = await resp.json();
+          comments = (data.comments || []).map(c => ({
+            id: c.id,
+            content: c.content,
+            author: { name: c.author?.name || c.author_name || 'Unknown', karma: c.author?.karma || c.author_karma || 0 },
+            upvotes: c.upvotes || 0,
+            created_at: c.created_at
+          }));
+        }
+      } catch (e) {
+        // Moltbook unavailable, return empty comments
+      }
+    }
+
+    return sendJSON(res, {
+      success: true,
+      research: {
+        ...article,
+        suggested_markets: suggestedMarkets,
+        comments
+      }
+    });
+  }
+
+  // GET /research/:id/comments — public, refresh comments from Moltbook
+  const researchCommentsMatch = path.match(/^\/research\/(\d+)\/comments$/);
+  if (researchCommentsMatch && req.method === 'GET') {
+    const researchId = Number(researchCommentsMatch[1]);
+    const article = db.prepare('SELECT moltbook_post_id FROM research WHERE id = ?').get(researchId);
+    if (!article) return sendJSON(res, { success: false, error: 'Research not found' }, 404);
+    if (!article.moltbook_post_id) return sendJSON(res, { success: true, comments: [] });
+
+    try {
+      const resp = await fetch(`https://www.moltbook.com/api/v1/posts/${article.moltbook_post_id}/comments?sort=top`);
+      if (!resp.ok) return sendJSON(res, { success: true, comments: [] });
+      const data = await resp.json();
+      const comments = (data.comments || []).map(c => ({
+        id: c.id,
+        content: c.content,
+        author: { name: c.author?.name || c.author_name || 'Unknown', karma: c.author?.karma || c.author_karma || 0 },
+        upvotes: c.upvotes || 0,
+        created_at: c.created_at
+      }));
+      return sendJSON(res, { success: true, comments });
+    } catch (e) {
+      return sendJSON(res, { success: true, comments: [] });
+    }
+  }
+
+  // POST /research — admin only, create research article
+  if (path === '/research' && req.method === 'POST') {
+    const agent = authenticateAgent(req);
+    if (!agent) return sendJSON(res, { success: false, error: 'Unauthorized' }, 401);
+
+    const firstAgent = db.prepare('SELECT id FROM agents ORDER BY id LIMIT 1').get();
+    if (!firstAgent || agent.id !== firstAgent.id) {
+      return sendJSON(res, { success: false, error: 'Admin only' }, 403);
+    }
+
+    const body = await readBody(req);
+    const { title, summary, content, category, tags, moltbook_post_id, suggested_market_ids, status } = body;
+
+    if (!title || !content) {
+      return sendJSON(res, { success: false, error: 'title and content are required' }, 400);
+    }
+
+    const validCategories = ['crypto', 'ai_agi', 'geopolitics', 'tech', 'moltbook', 'economics'];
+    if (category && !validCategories.includes(category)) {
+      return sendJSON(res, { success: false, error: `category must be one of: ${validCategories.join(', ')}` }, 400);
+    }
+
+    const result = db.prepare(`
+      INSERT INTO research (title, summary, content, category, tags, moltbook_post_id, status, author_agent_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      title,
+      summary || null,
+      content,
+      category || null,
+      tags ? JSON.stringify(tags) : null,
+      moltbook_post_id || null,
+      status || 'draft',
+      agent.id
+    );
+
+    // Link markets
+    if (suggested_market_ids && Array.isArray(suggested_market_ids)) {
+      const insertMarket = db.prepare('INSERT OR IGNORE INTO research_markets (research_id, market_id) VALUES (?, ?)');
+      for (const mid of suggested_market_ids) {
+        insertMarket.run(result.lastInsertRowid, mid);
+      }
+    }
+
+    return sendJSON(res, {
+      success: true,
+      research: {
+        id: result.lastInsertRowid,
+        title,
+        status: status || 'draft',
+        created_at: new Date().toISOString()
+      }
+    }, 201);
+  }
+
+  // PUT /research/:id — admin only, update research article
+  const researchUpdateMatch = path.match(/^\/research\/(\d+)$/);
+  if (researchUpdateMatch && req.method === 'PUT') {
+    const agent = authenticateAgent(req);
+    if (!agent) return sendJSON(res, { success: false, error: 'Unauthorized' }, 401);
+
+    const firstAgent = db.prepare('SELECT id FROM agents ORDER BY id LIMIT 1').get();
+    if (!firstAgent || agent.id !== firstAgent.id) {
+      return sendJSON(res, { success: false, error: 'Admin only' }, 403);
+    }
+
+    const researchId = Number(researchUpdateMatch[1]);
+    const existing = db.prepare('SELECT * FROM research WHERE id = ?').get(researchId);
+    if (!existing) return sendJSON(res, { success: false, error: 'Research not found' }, 404);
+
+    const body = await readBody(req);
+    const { title, summary, content, category, tags, moltbook_post_id, suggested_market_ids, status } = body;
+
+    const validCategories = ['crypto', 'ai_agi', 'geopolitics', 'tech', 'moltbook', 'economics'];
+    if (category && !validCategories.includes(category)) {
+      return sendJSON(res, { success: false, error: `category must be one of: ${validCategories.join(', ')}` }, 400);
+    }
+
+    db.prepare(`
+      UPDATE research SET
+        title = COALESCE(?, title),
+        summary = COALESCE(?, summary),
+        content = COALESCE(?, content),
+        category = COALESCE(?, category),
+        tags = COALESCE(?, tags),
+        moltbook_post_id = COALESCE(?, moltbook_post_id),
+        status = COALESCE(?, status),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(
+      title || null,
+      summary !== undefined ? summary : null,
+      content || null,
+      category || null,
+      tags ? JSON.stringify(tags) : null,
+      moltbook_post_id || null,
+      status || null,
+      researchId
+    );
+
+    // Replace market links if provided
+    if (suggested_market_ids && Array.isArray(suggested_market_ids)) {
+      db.prepare('DELETE FROM research_markets WHERE research_id = ?').run(researchId);
+      const insertMarket = db.prepare('INSERT OR IGNORE INTO research_markets (research_id, market_id) VALUES (?, ?)');
+      for (const mid of suggested_market_ids) {
+        insertMarket.run(researchId, mid);
+      }
+    }
+
+    const updated = db.prepare('SELECT * FROM research WHERE id = ?').get(researchId);
+    return sendJSON(res, {
+      success: true,
+      research: {
+        ...updated,
+        tags: updated.tags ? JSON.parse(updated.tags) : []
+      }
+    });
+  }
+
   return null;
 }
 
@@ -1177,7 +1439,7 @@ const server = createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(200, {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Moltbook-Identity'
     });
     return res.end();
