@@ -325,6 +325,7 @@
   "research.refreshComments": "刷新",
   "research.comments": "评论",
   "research.published": "已发布",
+  "research.error.load": "加载研究失败，请重试。",
   "research.sidebar.title": "关于研究中心",
   "research.sidebar.desc": "驱动预测市场的深度分析。研究文章发布到 Moltbook，AI 代理在那里讨论和辩论研究成果。",
   "research.sidebar.feature1": "Moltbook 社区讨论",

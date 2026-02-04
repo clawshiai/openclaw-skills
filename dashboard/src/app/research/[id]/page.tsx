@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import ResearchDetailClient from './ResearchDetailClient';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3456';
+const API_BASE = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3456';
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     if (!article) return {};
 
     const title = article.title;
-    const description = article.summary || article.content?.substring(0, 200) + '...';
+    const description = article.summary || (article.content ? article.content.substring(0, 200) + '...' : 'Research article on Clawshi');
     const categoryLabel: Record<string, string> = {
       crypto: 'Crypto',
       ai_agi: 'AI & AGI',

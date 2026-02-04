@@ -482,7 +482,7 @@ const routes = {
     const getMarketIds = db.prepare('SELECT market_id FROM research_markets WHERE research_id = ?');
     const result = articles.map(a => ({
       ...a,
-      tags: a.tags ? JSON.parse(a.tags) : [],
+      tags: (() => { try { return a.tags ? JSON.parse(a.tags) : []; } catch { return []; } })(),
       suggested_market_ids: getMarketIds.all(a.id).map(r => r.market_id)
     }));
 
@@ -1233,10 +1233,17 @@ async function handleAgentRoutes(path, req, res) {
   const researchDetailMatch = path.match(/^\/research\/(\d+)$/);
   if (researchDetailMatch && req.method === 'GET') {
     const researchId = Number(researchDetailMatch[1]);
-    const article = db.prepare('SELECT * FROM research WHERE id = ?').get(researchId);
+    // Allow admin to view drafts, public only sees published
+    const agent = authenticateAgent(req);
+    const firstAgent = db.prepare('SELECT id FROM agents ORDER BY id LIMIT 1').get();
+    const isAdmin = agent && firstAgent && agent.id === firstAgent.id;
+
+    const article = isAdmin
+      ? db.prepare('SELECT * FROM research WHERE id = ?').get(researchId)
+      : db.prepare("SELECT * FROM research WHERE id = ? AND status = 'published'").get(researchId);
     if (!article) return sendJSON(res, { success: false, error: 'Research not found' }, 404);
 
-    article.tags = article.tags ? JSON.parse(article.tags) : [];
+    article.tags = (() => { try { return article.tags ? JSON.parse(article.tags) : []; } catch { return []; } })();
 
     // Get linked markets
     const marketIds = db.prepare('SELECT market_id FROM research_markets WHERE research_id = ?').all(researchId);
@@ -1329,6 +1336,11 @@ async function handleAgentRoutes(path, req, res) {
       return sendJSON(res, { success: false, error: `category must be one of: ${validCategories.join(', ')}` }, 400);
     }
 
+    const validStatuses = ['draft', 'published'];
+    if (status && !validStatuses.includes(status)) {
+      return sendJSON(res, { success: false, error: `status must be one of: ${validStatuses.join(', ')}` }, 400);
+    }
+
     const result = db.prepare(`
       INSERT INTO research (title, summary, content, category, tags, moltbook_post_id, status, author_agent_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -1384,28 +1396,24 @@ async function handleAgentRoutes(path, req, res) {
     if (category && !validCategories.includes(category)) {
       return sendJSON(res, { success: false, error: `category must be one of: ${validCategories.join(', ')}` }, 400);
     }
+    const validStatuses = ['draft', 'published'];
+    if (status && !validStatuses.includes(status)) {
+      return sendJSON(res, { success: false, error: `status must be one of: ${validStatuses.join(', ')}` }, 400);
+    }
 
-    db.prepare(`
-      UPDATE research SET
-        title = COALESCE(?, title),
-        summary = COALESCE(?, summary),
-        content = COALESCE(?, content),
-        category = COALESCE(?, category),
-        tags = COALESCE(?, tags),
-        moltbook_post_id = COALESCE(?, moltbook_post_id),
-        status = COALESCE(?, status),
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).run(
-      title || null,
-      summary !== undefined ? summary : null,
-      content || null,
-      category || null,
-      tags ? JSON.stringify(tags) : null,
-      moltbook_post_id || null,
-      status || null,
-      researchId
-    );
+    // Build dynamic UPDATE — only update fields present in body
+    const updates = [];
+    const updateParams = [];
+    if ('title' in body) { updates.push('title = ?'); updateParams.push(body.title); }
+    if ('summary' in body) { updates.push('summary = ?'); updateParams.push(body.summary); }
+    if ('content' in body) { updates.push('content = ?'); updateParams.push(body.content); }
+    if ('category' in body) { updates.push('category = ?'); updateParams.push(body.category); }
+    if ('tags' in body) { updates.push('tags = ?'); updateParams.push(body.tags ? JSON.stringify(body.tags) : null); }
+    if ('moltbook_post_id' in body) { updates.push('moltbook_post_id = ?'); updateParams.push(body.moltbook_post_id); }
+    if ('status' in body) { updates.push('status = ?'); updateParams.push(body.status); }
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+
+    db.prepare(`UPDATE research SET ${updates.join(', ')} WHERE id = ?`).run(...updateParams, researchId);
 
     // Replace market links if provided
     if (suggested_market_ids && Array.isArray(suggested_market_ids)) {
@@ -1421,7 +1429,7 @@ async function handleAgentRoutes(path, req, res) {
       success: true,
       research: {
         ...updated,
-        tags: updated.tags ? JSON.parse(updated.tags) : []
+        tags: (() => { try { return updated.tags ? JSON.parse(updated.tags) : []; } catch { return []; } })()
       }
     });
   }

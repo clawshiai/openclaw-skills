@@ -15,13 +15,14 @@ const categoryColors: Record<string, string> = {
 };
 
 export function ResearchCard({ article }: { article: Research }) {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
+  const dateLocale = locale === 'zh' ? 'zh-CN' : 'en-US';
 
-  const date = new Date(article.created_at).toLocaleDateString('en-US', {
+  const date = new Date(article.created_at).toLocaleDateString(dateLocale, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
-  }) + ' · ' + new Date(article.created_at).toLocaleTimeString('en-US', {
+  }) + ' · ' + new Date(article.created_at).toLocaleTimeString(dateLocale, {
     hour: '2-digit',
     minute: '2-digit',
   });

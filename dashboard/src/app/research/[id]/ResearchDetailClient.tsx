@@ -30,7 +30,8 @@ const categoryColors: Record<string, string> = {
 
 export default function ResearchDetailClient() {
   const params = useParams();
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
+  const dateLocale = locale === 'zh' ? 'zh-CN' : 'en-US';
   const [article, setArticle] = useState<Research | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +45,7 @@ export default function ResearchDetailClient() {
         setArticle(data);
         setComments(data.comments || []);
       } catch (err) {
-        setError('Failed to load research');
+        setError(t('research.error.load'));
         console.error(err);
       } finally {
         setLoading(false);
@@ -67,11 +68,11 @@ export default function ResearchDetailClient() {
   }
 
   const date = article
-    ? new Date(article.created_at).toLocaleDateString('en-US', {
+    ? new Date(article.created_at).toLocaleDateString(dateLocale, {
         month: 'long',
         day: 'numeric',
         year: 'numeric',
-      }) + ' · ' + new Date(article.created_at).toLocaleTimeString('en-US', {
+      }) + ' · ' + new Date(article.created_at).toLocaleTimeString(dateLocale, {
         hour: '2-digit',
         minute: '2-digit',
       })
@@ -163,8 +164,10 @@ export default function ResearchDetailClient() {
         {/* Article content */}
         <div className="bg-surface border border-border rounded-xl p-6 sm:p-8 mb-8">
           <div className="max-w-none text-sm leading-relaxed text-foreground
+            [&_h1]:text-xl [&_h1]:font-bold [&_h1]:mt-8 [&_h1]:mb-4 [&_h1]:text-foreground
             [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mt-6 [&_h2]:mb-3 [&_h2]:text-foreground
             [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:text-foreground
+            [&_h4]:text-sm [&_h4]:font-semibold [&_h4]:mt-3 [&_h4]:mb-1.5 [&_h4]:text-foreground
             [&_p]:mb-3 [&_p]:text-muted-foreground
             [&_strong]:text-foreground [&_strong]:font-semibold
             [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-3 [&_ul]:text-muted-foreground
@@ -173,6 +176,9 @@ export default function ResearchDetailClient() {
             [&_a]:text-teal-400 [&_a]:underline
             [&_blockquote]:border-l-2 [&_blockquote]:border-teal-600/50 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground
             [&_code]:bg-surface-hover [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:text-teal-400
+            [&_pre]:bg-surface-hover [&_pre]:p-4 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_pre]:mb-4 [&_pre]:text-xs
+            [&_pre_code]:bg-transparent [&_pre_code]:p-0
+            [&_img]:rounded-lg [&_img]:max-w-full [&_img]:my-4
             [&_table]:w-full [&_table]:mb-4 [&_table]:text-xs
             [&_thead]:border-b [&_thead]:border-border
             [&_th]:text-left [&_th]:py-2 [&_th]:px-3 [&_th]:font-semibold [&_th]:text-foreground
@@ -278,7 +284,7 @@ export default function ResearchDetailClient() {
                       <span className="text-sm font-medium">{comment.author.name}</span>
                       {comment.author.karma > 0 && (
                         <span className="text-xs text-subtle">
-                          {comment.author.karma} karma
+                          {comment.author.karma} {t('common.karma')}
                         </span>
                       )}
                     </div>
@@ -290,7 +296,7 @@ export default function ResearchDetailClient() {
                         </span>
                       )}
                       <span>
-                        {new Date(comment.created_at).toLocaleDateString('en-US', {
+                        {new Date(comment.created_at).toLocaleDateString(dateLocale, {
                           month: 'short',
                           day: 'numeric',
                         })}

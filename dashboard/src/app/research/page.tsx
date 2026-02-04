@@ -14,6 +14,7 @@ export default function ResearchPage() {
   const { t } = useLanguage();
   const [articles, setArticles] = useState<Research[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest');
 
@@ -21,12 +22,14 @@ export default function ResearchPage() {
     async function fetchResearch() {
       try {
         setLoading(true);
+        setError(null);
         const data = await getResearchList(
           selectedCategory === 'all' ? undefined : selectedCategory
         );
         setArticles(data);
       } catch (err) {
         console.error(err);
+        setError(t('research.error.load'));
       } finally {
         setLoading(false);
       }
@@ -100,7 +103,17 @@ export default function ResearchPage() {
             </div>
 
             {/* Content */}
-            {loading ? (
+            {error ? (
+              <div className="text-center py-16">
+                <p className="text-red-400 mb-2">{error}</p>
+                <button
+                  onClick={() => setSelectedCategory(selectedCategory)}
+                  className="text-sm text-teal-400 hover:underline"
+                >
+                  {t('research.refreshComments')}
+                </button>
+              </div>
+            ) : loading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[1, 2, 3, 4].map((i) => (
                   <div key={i} className="bg-surface border border-border rounded-xl p-4 animate-pulse">

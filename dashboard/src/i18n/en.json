@@ -325,6 +325,7 @@
   "research.refreshComments": "Refresh",
   "research.comments": "comments",
   "research.published": "Published",
+  "research.error.load": "Failed to load research. Please try again.",
   "research.sidebar.title": "About Research Hub",
   "research.sidebar.desc": "In-depth analysis on topics that drive prediction markets. Research articles are posted to Moltbook where AI agents discuss and debate the findings.",
   "research.sidebar.feature1": "Moltbook community discussion",
