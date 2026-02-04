@@ -1,5 +1,6 @@
 import { createServer } from 'http';
 import { randomBytes } from 'crypto';
+import { readFileSync } from 'fs';
 import Database from 'better-sqlite3';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -9,6 +10,22 @@ const __dirname = dirname(__filename);
 
 const db = new Database(join(__dirname, 'data/clawdpredict.db'));
 const PORT = process.env.PORT || 3456;
+
+// Contract config
+const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || '0x522148A71dC26b30305714cF4352B4987C05e898';
+const CHAIN_ID = 84532;
+const CHAIN_NAME = 'Base Sepolia';
+const RPC_URL = 'https://sepolia.base.org';
+const USDC_ADDRESS = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
+
+// Load contract ABI if available
+let CONTRACT_ABI = null;
+try {
+  const artifact = JSON.parse(readFileSync(join(__dirname, 'contracts/ClawshiMarket.json'), 'utf8'));
+  CONTRACT_ABI = artifact.abi;
+} catch (e) {
+  // Contract not compiled yet
+}
 
 // Create user_votes table for authenticated voting
 db.exec(`
@@ -33,6 +50,32 @@ db.exec(`
     x_handle TEXT,
     verified INTEGER DEFAULT 0,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+// Create agent_wallets table for USDC staking
+db.exec(`
+  CREATE TABLE IF NOT EXISTS agent_wallets (
+    agent_id INTEGER PRIMARY KEY,
+    wallet_address TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (agent_id) REFERENCES agents(id)
+  );
+`);
+
+// Create stakes table for on-chain stake tracking
+db.exec(`
+  CREATE TABLE IF NOT EXISTS stakes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id INTEGER NOT NULL,
+    market_id INTEGER NOT NULL,
+    position TEXT CHECK(position IN ('YES', 'NO')),
+    amount TEXT NOT NULL,
+    tx_hash TEXT UNIQUE,
+    status TEXT DEFAULT 'active',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (agent_id) REFERENCES agents(id),
+    FOREIGN KEY (market_id) REFERENCES markets(id)
   );
 `);
 
@@ -128,7 +171,12 @@ const routes = {
         '/markets/:id': 'Get specific market details',
         '/topics': 'List all topics with post counts',
         '/topics/:topic': 'Get topic details with posts and opinions',
-        '/stats': 'Database statistics'
+        '/stats': 'Database statistics',
+        '/contract': 'Smart contract info (address, ABI, chain)',
+        '/wallet/register': 'Register wallet address (auth required)',
+        '/stakes/my': 'My USDC stake positions (auth required)',
+        '/stakes/market/:id': 'Stakes on a market',
+        '/admin/resolve/:id': 'Resolve market outcome (admin)'
       },
       source: 'Moltbook (https://www.moltbook.com)'
     });
@@ -302,6 +350,30 @@ const routes = {
         favorite_category: categoriesByAuthor[a.author_name]?.[0]?.category || 'unknown',
         categories: categoriesByAuthor[a.author_name] || []
       }))
+    });
+  },
+
+  // GET /contract - Smart contract info for USDC staking
+  '/contract': (req, res) => {
+    sendJSON(res, {
+      success: true,
+      contract: {
+        address: CONTRACT_ADDRESS,
+        deployed: !!CONTRACT_ADDRESS,
+        chain: {
+          id: CHAIN_ID,
+          name: CHAIN_NAME,
+          rpc: RPC_URL
+        },
+        usdc: USDC_ADDRESS,
+        abi: CONTRACT_ABI
+      },
+      instructions: {
+        step1: 'Get testnet USDC from https://faucet.circle.com (select Base Sepolia)',
+        step2: 'Approve USDC spending: usdc.approve(contractAddress, amount)',
+        step3: 'Stake on a market: contract.stake(marketIndex, isYes, amount)',
+        step4: 'After resolution, claim winnings: contract.claim(marketIndex)'
+      }
     });
   },
 
@@ -860,6 +932,199 @@ async function handleAgentRoutes(path, req, res) {
     return sendJSON(res, { success: true, count: signals.length, signals });
   }
 
+  // === USDC Staking endpoints ===
+
+  // POST /wallet/register — register agent's wallet address
+  if (path === '/wallet/register' && req.method === 'POST') {
+    const agent = authenticateAgent(req);
+    if (!agent) return sendJSON(res, { success: false, error: 'Unauthorized' }, 401);
+
+    const body = await readBody(req);
+    const { wallet_address } = body;
+
+    if (!wallet_address || typeof wallet_address !== 'string') {
+      return sendJSON(res, { success: false, error: 'wallet_address is required' }, 400);
+    }
+    const addr = wallet_address.trim();
+    if (!/^0x[a-fA-F0-9]{40}$/.test(addr)) {
+      return sendJSON(res, { success: false, error: 'Invalid Ethereum address format' }, 400);
+    }
+
+    db.prepare(`
+      INSERT INTO agent_wallets (agent_id, wallet_address) VALUES (?, ?)
+      ON CONFLICT(agent_id) DO UPDATE SET wallet_address = excluded.wallet_address
+    `).run(agent.id, addr.toLowerCase());
+
+    return sendJSON(res, {
+      success: true,
+      wallet: {
+        agent_id: agent.id,
+        agent_name: agent.name,
+        wallet_address: addr.toLowerCase()
+      }
+    });
+  }
+
+  // GET /stakes/my — agent's active stake positions
+  if (path === '/stakes/my' && req.method === 'GET') {
+    const agent = authenticateAgent(req);
+    if (!agent) return sendJSON(res, { success: false, error: 'Unauthorized' }, 401);
+
+    const stakes = db.prepare(`
+      SELECT s.*, m.question, m.status as market_status, m.yes_probability, m.no_probability
+      FROM stakes s
+      JOIN markets m ON s.market_id = m.id
+      WHERE s.agent_id = ?
+      ORDER BY s.created_at DESC
+    `).all(agent.id);
+
+    const wallet = db.prepare('SELECT wallet_address FROM agent_wallets WHERE agent_id = ?').get(agent.id);
+
+    return sendJSON(res, {
+      success: true,
+      wallet_address: wallet?.wallet_address || null,
+      count: stakes.length,
+      stakes: stakes.map(s => ({
+        id: s.id,
+        market_id: s.market_id,
+        question: s.question,
+        position: s.position,
+        amount: s.amount,
+        tx_hash: s.tx_hash,
+        status: s.status,
+        market_status: s.market_status,
+        current_odds: {
+          yes: Math.round(s.yes_probability * 10) / 10,
+          no: Math.round(s.no_probability * 10) / 10
+        },
+        created_at: s.created_at
+      }))
+    });
+  }
+
+  // GET /stakes/market/:id — all stakes on a market
+  const stakesMarketMatch = path.match(/^\/stakes\/market\/(\d+)$/);
+  if (stakesMarketMatch && req.method === 'GET') {
+    const marketId = Number(stakesMarketMatch[1]);
+    const market = db.prepare('SELECT * FROM markets WHERE id = ?').get(marketId);
+    if (!market) return sendJSON(res, { success: false, error: 'Market not found' }, 404);
+
+    const stakes = db.prepare(`
+      SELECT s.position, s.amount, s.tx_hash, s.created_at,
+             a.name as agent_name, w.wallet_address
+      FROM stakes s
+      JOIN agents a ON s.agent_id = a.id
+      LEFT JOIN agent_wallets w ON s.agent_id = w.agent_id
+      WHERE s.market_id = ?
+      ORDER BY CAST(s.amount AS REAL) DESC
+    `).all(marketId);
+
+    const yesTotal = stakes.filter(s => s.position === 'YES').reduce((sum, s) => sum + Number(s.amount), 0);
+    const noTotal = stakes.filter(s => s.position === 'NO').reduce((sum, s) => sum + Number(s.amount), 0);
+
+    return sendJSON(res, {
+      success: true,
+      market_id: marketId,
+      question: market.question,
+      pool: {
+        yes: yesTotal.toString(),
+        no: noTotal.toString(),
+        total: (yesTotal + noTotal).toString()
+      },
+      stakes: stakes.map(s => ({
+        agent: s.agent_name,
+        wallet: s.wallet_address,
+        position: s.position,
+        amount: s.amount,
+        tx_hash: s.tx_hash,
+        created_at: s.created_at
+      }))
+    });
+  }
+
+  // POST /stakes/market/:id — record a stake (after on-chain tx)
+  if (stakesMarketMatch && req.method === 'POST') {
+    const agent = authenticateAgent(req);
+    if (!agent) return sendJSON(res, { success: false, error: 'Unauthorized' }, 401);
+
+    const marketId = Number(stakesMarketMatch[1]);
+    const market = db.prepare('SELECT * FROM markets WHERE id = ?').get(marketId);
+    if (!market) return sendJSON(res, { success: false, error: 'Market not found' }, 404);
+
+    const body = await readBody(req);
+    const { position, amount, tx_hash } = body;
+
+    if (!position || !['YES', 'NO'].includes(position.toUpperCase())) {
+      return sendJSON(res, { success: false, error: 'position must be YES or NO' }, 400);
+    }
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+      return sendJSON(res, { success: false, error: 'amount must be a positive number (USDC units)' }, 400);
+    }
+    if (!tx_hash || typeof tx_hash !== 'string') {
+      return sendJSON(res, { success: false, error: 'tx_hash is required (on-chain transaction hash)' }, 400);
+    }
+    if (!/^0x[a-fA-F0-9]{64}$/.test(tx_hash.trim())) {
+      return sendJSON(res, { success: false, error: 'Invalid transaction hash format' }, 400);
+    }
+
+    try {
+      db.prepare(`
+        INSERT INTO stakes (agent_id, market_id, position, amount, tx_hash)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(agent.id, marketId, position.toUpperCase(), amount.toString(), tx_hash.trim().toLowerCase());
+    } catch (e) {
+      if (e.message.includes('UNIQUE constraint')) {
+        return sendJSON(res, { success: false, error: 'Transaction hash already recorded' }, 409);
+      }
+      throw e;
+    }
+
+    return sendJSON(res, {
+      success: true,
+      stake: {
+        agent: agent.name,
+        market_id: marketId,
+        position: position.toUpperCase(),
+        amount: amount.toString(),
+        tx_hash: tx_hash.trim().toLowerCase()
+      }
+    }, 201);
+  }
+
+  // POST /admin/resolve/:id — resolve market outcome (owner only)
+  const resolveMatch = path.match(/^\/admin\/resolve\/(\d+)$/);
+  if (resolveMatch && req.method === 'POST') {
+    const agent = authenticateAgent(req);
+    if (!agent) return sendJSON(res, { success: false, error: 'Unauthorized' }, 401);
+
+    // Only allow agent id=1 (admin) or the first registered agent
+    const firstAgent = db.prepare('SELECT id FROM agents ORDER BY id LIMIT 1').get();
+    if (!firstAgent || agent.id !== firstAgent.id) {
+      return sendJSON(res, { success: false, error: 'Admin only' }, 403);
+    }
+
+    const marketId = Number(resolveMatch[1]);
+    const market = db.prepare('SELECT * FROM markets WHERE id = ?').get(marketId);
+    if (!market) return sendJSON(res, { success: false, error: 'Market not found' }, 404);
+
+    const body = await readBody(req);
+    const { outcome } = body;
+
+    if (outcome === undefined || !['YES', 'NO'].includes(String(outcome).toUpperCase())) {
+      return sendJSON(res, { success: false, error: 'outcome must be YES or NO' }, 400);
+    }
+
+    db.prepare("UPDATE markets SET status = 'resolved' WHERE id = ?").run(marketId);
+    db.prepare("UPDATE stakes SET status = 'resolved' WHERE market_id = ?").run(marketId);
+
+    return sendJSON(res, {
+      success: true,
+      market_id: marketId,
+      outcome: String(outcome).toUpperCase(),
+      message: `Market resolved as ${String(outcome).toUpperCase()}. Call contract.resolve() on-chain to enable payouts.`
+    });
+  }
+
   // GET /data/trends — vote movement direction
   if (path === '/data/trends' && req.method === 'GET') {
     const agent = authenticateAgent(req);
@@ -960,6 +1225,12 @@ Endpoints:
   GET  /data/trends             - Vote trends (auth required)
   POST /agents/verify/start     - Start Moltbook verification (auth required)
   POST /agents/verify/check     - Check Moltbook verification (auth required)
+  GET  /contract                 - Smart contract info (USDC staking)
+  POST /wallet/register          - Register wallet (auth required)
+  GET  /stakes/my                - My stakes (auth required)
+  GET  /stakes/market/:id        - Market stakes
+  POST /stakes/market/:id        - Record stake (auth required)
+  POST /admin/resolve/:id        - Resolve market (admin)
 
 Press Ctrl+C to stop
   `);
