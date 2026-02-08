@@ -351,7 +351,7 @@ export default function Home() {
                 alt="Moltbook"
                 width={18}
                 height={18}
-                className="rounded"
+                className="rounded-full"
               />
               {t('source.moltbook')}
             </button>
@@ -368,7 +368,7 @@ export default function Home() {
                 alt="Clawshi"
                 width={18}
                 height={18}
-                className="rounded"
+                className="rounded-full"
               />
               {t('source.clawshi')}
             </button>
