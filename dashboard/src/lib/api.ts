@@ -302,3 +302,154 @@ export async function getResearchComments(id: number): Promise<MoltbookComment[]
   const data = await res.json();
   return data.comments;
 }
+
+// Staking types and functions
+
+export interface UserPosition {
+  id: number;
+  market_id: number;
+  question: string;
+  category: string;
+  position: 'YES' | 'NO';
+  amount: string;
+  tx_hash: string;
+  status: string;
+  market_status: string;
+  claimed: boolean;
+  current_odds: {
+    yes: number;
+    no: number;
+  };
+  resolution_date: string;
+  created_at: string;
+}
+
+export interface UserPositionsResponse {
+  success: boolean;
+  wallet_address: string;
+  positions: UserPosition[];
+  summary: {
+    total_staked: string;
+    active_positions: number;
+    resolved_positions: number;
+    claimable: string;
+  };
+}
+
+export async function getUserPositions(address: string): Promise<UserPositionsResponse> {
+  const res = await fetch(`${getApiBase()}/user/${address}/positions`, {
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error('Failed to fetch user positions');
+  return res.json();
+}
+
+export interface UserHistoryEntry {
+  id: number;
+  type: string;
+  market_id: number;
+  question: string;
+  category: string;
+  position: 'YES' | 'NO';
+  amount: string;
+  tx_hash: string;
+  status: string;
+  claimed: boolean;
+  created_at: string;
+}
+
+export interface UserHistoryResponse {
+  success: boolean;
+  wallet_address: string;
+  count: number;
+  history: UserHistoryEntry[];
+}
+
+export async function getUserHistory(address: string): Promise<UserHistoryResponse> {
+  const res = await fetch(`${getApiBase()}/user/${address}/history`, {
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error('Failed to fetch user history');
+  return res.json();
+}
+
+export interface MarketStakes {
+  success: boolean;
+  market_id: number;
+  question: string;
+  status: string;
+  pool: {
+    yes: string;
+    no: string;
+    total: string;
+  };
+  stakers: {
+    yes: number;
+    no: number;
+    total: number;
+  };
+  probabilities: {
+    yes: number;
+    no: number;
+  };
+}
+
+export async function getMarketStakes(marketId: number): Promise<MarketStakes> {
+  const res = await fetch(`${getApiBase()}/markets/${marketId}/stakes`, {
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error('Failed to fetch market stakes');
+  return res.json();
+}
+
+export interface RecordStakeParams {
+  wallet_address: string;
+  market_id: number;
+  position: 'YES' | 'NO';
+  amount: string;
+  tx_hash: string;
+}
+
+export interface RecordStakeResponse {
+  success: boolean;
+  stake?: {
+    wallet_address: string;
+    market_id: number;
+    position: string;
+    amount: string;
+    tx_hash: string;
+  };
+  error?: string;
+}
+
+export async function recordStake(params: RecordStakeParams): Promise<RecordStakeResponse> {
+  const res = await fetch(`${getApiBase()}/user/stake`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  return res.json();
+}
+
+export interface RecordClaimParams {
+  wallet_address: string;
+  market_id: number;
+  tx_hash?: string;
+}
+
+export interface RecordClaimResponse {
+  success: boolean;
+  message?: string;
+  wallet_address?: string;
+  market_id?: number;
+  error?: string;
+}
+
+export async function recordClaim(params: RecordClaimParams): Promise<RecordClaimResponse> {
+  const res = await fetch(`${getApiBase()}/user/claim`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  return res.json();
+}

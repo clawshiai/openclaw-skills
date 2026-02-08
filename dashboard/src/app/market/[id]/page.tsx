@@ -19,6 +19,7 @@ import {
 import Link from 'next/link';
 import { Footer } from '@/components/Footer';
 import { ProbabilityChart } from '@/components/ProbabilityChart';
+import { StakingPanel } from '@/components/StakingPanel';
 
 const categoryGroupLabels: Record<string, string> = {
   crypto: 'Crypto',
@@ -171,6 +172,12 @@ export default function MarketDetail() {
               {t('market.totalVotes', { count: market.total_opinions })}
             </div>
           </div>
+
+          {/* Staking Panel */}
+          <StakingPanel
+            marketId={market.id}
+            odds={{ yes: yesPercent, no: noPercent }}
+          />
         </div>
 
         {/* Probability Chart */}

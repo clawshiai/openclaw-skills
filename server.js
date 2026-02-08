@@ -81,6 +81,25 @@ db.exec(`
   );
 `);
 
+// Create user_stakes table for wallet-based staking (frontend)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS user_stakes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    wallet_address TEXT NOT NULL,
+    market_id INTEGER NOT NULL,
+    position TEXT CHECK(position IN ('YES', 'NO')),
+    amount TEXT NOT NULL,
+    tx_hash TEXT UNIQUE,
+    status TEXT DEFAULT 'active',
+    claimed INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (market_id) REFERENCES markets(id)
+  );
+`);
+// Index for wallet-based queries
+try { db.exec('CREATE INDEX idx_user_stakes_wallet ON user_stakes(wallet_address)'); } catch (e) {}
+try { db.exec('CREATE INDEX idx_user_stakes_market ON user_stakes(market_id)'); } catch (e) {}
+
 // Create research table
 db.exec(`
   CREATE TABLE IF NOT EXISTS research (
@@ -213,10 +232,15 @@ const routes = {
         '/': 'API information',
         '/markets': 'List all prediction markets',
         '/markets/:id': 'Get specific market details',
+        '/markets/:id/stakes': 'Get market stake pools (YES/NO totals)',
         '/topics': 'List all topics with post counts',
         '/topics/:topic': 'Get topic details with posts and opinions',
         '/stats': 'Database statistics',
         '/contract': 'Smart contract info (address, ABI, chain)',
+        '/user/:address/positions': 'User positions by wallet address',
+        '/user/:address/history': 'User transaction history by wallet',
+        '/user/stake': 'Record a stake (POST)',
+        '/user/claim': 'Mark stake as claimed (POST)',
         '/wallet/register': 'Register wallet address (auth required)',
         '/stakes/my': 'My USDC stake positions (auth required)',
         '/stakes/market/:id': 'Stakes on a market',
@@ -1581,6 +1605,222 @@ async function handleAgentRoutes(path, req, res) {
         ...updated,
         tags: (() => { try { return updated.tags ? JSON.parse(updated.tags) : []; } catch { return []; } })()
       }
+    });
+  }
+
+  // === Wallet-based staking endpoints (for frontend) ===
+
+  // GET /user/:address/positions — user's positions by wallet address
+  const userPositionsMatch = path.match(/^\/user\/(0x[a-fA-F0-9]{40})\/positions$/);
+  if (userPositionsMatch && req.method === 'GET') {
+    const walletAddress = userPositionsMatch[1].toLowerCase();
+
+    const positions = db.prepare(`
+      SELECT s.*, m.question, m.category, m.status as market_status,
+             m.yes_probability, m.no_probability, m.resolution_date
+      FROM user_stakes s
+      JOIN markets m ON s.market_id = m.id
+      WHERE s.wallet_address = ?
+      ORDER BY s.created_at DESC
+    `).all(walletAddress);
+
+    // Calculate summary
+    const activePositions = positions.filter(p => p.market_status === 'active');
+    const resolvedPositions = positions.filter(p => p.market_status === 'resolved');
+    const totalStaked = positions.reduce((sum, p) => sum + BigInt(p.amount), 0n);
+
+    // Calculate claimable (simplified: positions on winning side of resolved markets)
+    const claimable = resolvedPositions
+      .filter(p => !p.claimed && p.status === 'active')
+      .reduce((sum, p) => sum + BigInt(p.amount), 0n);
+
+    return sendJSON(res, {
+      success: true,
+      wallet_address: walletAddress,
+      positions: positions.map(p => ({
+        id: p.id,
+        market_id: p.market_id,
+        question: p.question,
+        category: p.category,
+        position: p.position,
+        amount: p.amount,
+        tx_hash: p.tx_hash,
+        status: p.status,
+        market_status: p.market_status,
+        claimed: !!p.claimed,
+        current_odds: {
+          yes: Math.round(p.yes_probability * 10) / 10,
+          no: Math.round(p.no_probability * 10) / 10
+        },
+        resolution_date: p.resolution_date,
+        created_at: p.created_at
+      })),
+      summary: {
+        total_staked: totalStaked.toString(),
+        active_positions: activePositions.length,
+        resolved_positions: resolvedPositions.length,
+        claimable: claimable.toString()
+      }
+    });
+  }
+
+  // GET /user/:address/history — transaction history by wallet
+  const userHistoryMatch = path.match(/^\/user\/(0x[a-fA-F0-9]{40})\/history$/);
+  if (userHistoryMatch && req.method === 'GET') {
+    const walletAddress = userHistoryMatch[1].toLowerCase();
+
+    const history = db.prepare(`
+      SELECT s.id, s.market_id, s.position, s.amount, s.tx_hash, s.status, s.claimed, s.created_at,
+             m.question, m.category
+      FROM user_stakes s
+      JOIN markets m ON s.market_id = m.id
+      WHERE s.wallet_address = ?
+      ORDER BY s.created_at DESC
+      LIMIT 100
+    `).all(walletAddress);
+
+    return sendJSON(res, {
+      success: true,
+      wallet_address: walletAddress,
+      count: history.length,
+      history: history.map(h => ({
+        id: h.id,
+        type: 'stake',
+        market_id: h.market_id,
+        question: h.question,
+        category: h.category,
+        position: h.position,
+        amount: h.amount,
+        tx_hash: h.tx_hash,
+        status: h.status,
+        claimed: !!h.claimed,
+        created_at: h.created_at
+      }))
+    });
+  }
+
+  // GET /markets/:id/stakes — market's total YES/NO pools (public)
+  const marketStakesMatch = path.match(/^\/markets\/(\d+)\/stakes$/);
+  if (marketStakesMatch && req.method === 'GET') {
+    const marketId = Number(marketStakesMatch[1]);
+    const market = db.prepare('SELECT * FROM markets WHERE id = ?').get(marketId);
+    if (!market) return sendJSON(res, { success: false, error: 'Market not found' }, 404);
+
+    const stakes = db.prepare(`
+      SELECT position, SUM(CAST(amount AS INTEGER)) as total_amount, COUNT(*) as stake_count
+      FROM user_stakes
+      WHERE market_id = ? AND status = 'active'
+      GROUP BY position
+    `).all(marketId);
+
+    const yesPool = stakes.find(s => s.position === 'YES')?.total_amount || 0;
+    const noPool = stakes.find(s => s.position === 'NO')?.total_amount || 0;
+    const yesCount = stakes.find(s => s.position === 'YES')?.stake_count || 0;
+    const noCount = stakes.find(s => s.position === 'NO')?.stake_count || 0;
+
+    return sendJSON(res, {
+      success: true,
+      market_id: marketId,
+      question: market.question,
+      status: market.status,
+      pool: {
+        yes: yesPool.toString(),
+        no: noPool.toString(),
+        total: (yesPool + noPool).toString()
+      },
+      stakers: {
+        yes: yesCount,
+        no: noCount,
+        total: yesCount + noCount
+      },
+      probabilities: {
+        yes: Math.round(market.yes_probability * 10) / 10,
+        no: Math.round(market.no_probability * 10) / 10
+      }
+    });
+  }
+
+  // POST /user/stake — record a stake from frontend (after on-chain tx)
+  if (path === '/user/stake' && req.method === 'POST') {
+    const body = await readBody(req);
+    const { wallet_address, market_id, position, amount, tx_hash } = body;
+
+    if (!wallet_address || !/^0x[a-fA-F0-9]{40}$/.test(wallet_address)) {
+      return sendJSON(res, { success: false, error: 'Valid wallet_address is required' }, 400);
+    }
+    if (!market_id || isNaN(Number(market_id))) {
+      return sendJSON(res, { success: false, error: 'market_id is required' }, 400);
+    }
+    if (!position || !['YES', 'NO'].includes(position.toUpperCase())) {
+      return sendJSON(res, { success: false, error: 'position must be YES or NO' }, 400);
+    }
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+      return sendJSON(res, { success: false, error: 'amount must be a positive number' }, 400);
+    }
+    if (!tx_hash || !/^0x[a-fA-F0-9]{64}$/.test(tx_hash)) {
+      return sendJSON(res, { success: false, error: 'Valid tx_hash is required' }, 400);
+    }
+
+    const market = db.prepare('SELECT id FROM markets WHERE id = ?').get(Number(market_id));
+    if (!market) return sendJSON(res, { success: false, error: 'Market not found' }, 404);
+
+    try {
+      db.prepare(`
+        INSERT INTO user_stakes (wallet_address, market_id, position, amount, tx_hash)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(
+        wallet_address.toLowerCase(),
+        Number(market_id),
+        position.toUpperCase(),
+        amount.toString(),
+        tx_hash.toLowerCase()
+      );
+    } catch (e) {
+      if (e.message.includes('UNIQUE constraint')) {
+        return sendJSON(res, { success: false, error: 'Transaction already recorded' }, 409);
+      }
+      throw e;
+    }
+
+    return sendJSON(res, {
+      success: true,
+      stake: {
+        wallet_address: wallet_address.toLowerCase(),
+        market_id: Number(market_id),
+        position: position.toUpperCase(),
+        amount: amount.toString(),
+        tx_hash: tx_hash.toLowerCase()
+      }
+    }, 201);
+  }
+
+  // POST /user/claim — mark a stake as claimed
+  if (path === '/user/claim' && req.method === 'POST') {
+    const body = await readBody(req);
+    const { wallet_address, market_id, tx_hash } = body;
+
+    if (!wallet_address || !/^0x[a-fA-F0-9]{40}$/.test(wallet_address)) {
+      return sendJSON(res, { success: false, error: 'Valid wallet_address is required' }, 400);
+    }
+    if (!market_id || isNaN(Number(market_id))) {
+      return sendJSON(res, { success: false, error: 'market_id is required' }, 400);
+    }
+
+    const result = db.prepare(`
+      UPDATE user_stakes
+      SET claimed = 1, status = 'claimed'
+      WHERE wallet_address = ? AND market_id = ? AND claimed = 0
+    `).run(wallet_address.toLowerCase(), Number(market_id));
+
+    if (result.changes === 0) {
+      return sendJSON(res, { success: false, error: 'No unclaimed stake found' }, 404);
+    }
+
+    return sendJSON(res, {
+      success: true,
+      message: 'Stake marked as claimed',
+      wallet_address: wallet_address.toLowerCase(),
+      market_id: Number(market_id)
     });
   }
 

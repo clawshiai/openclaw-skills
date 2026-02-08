@@ -4,17 +4,21 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { Search, X, Menu, TrendingUp, Trophy, Lightbulb, BookOpen, Terminal, Bot, FileCode, Coins, Activity, ExternalLink } from 'lucide-react';
+import { Search, X, Menu, TrendingUp, Trophy, Lightbulb, BookOpen, Terminal, Bot, FileCode, Coins, Activity, ExternalLink, Briefcase } from 'lucide-react';
 import { Market, getMarkets } from '@/lib/api';
 import { ThemeToggle } from './ThemeToggle';
 import { LanguageToggle } from './LanguageToggle';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { NavDropdown, MobileNavSection } from './NavDropdown';
+import { ConnectWallet } from './ConnectWallet';
+import { NetworkBanner } from './NetworkBanner';
+import { useWallet } from '@/context/WalletContext';
 
 export function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useLanguage();
+  const { isConnected } = useWallet();
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -147,6 +151,8 @@ export function Header() {
   );
 
   return (
+    <>
+    <NetworkBanner />
     <header className="border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center h-14">
@@ -180,6 +186,19 @@ export function Header() {
             >
               {t('nav.markets')}
             </Link>
+            {/* Portfolio link - only when connected */}
+            {isConnected && (
+              <Link
+                href="/portfolio"
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                  pathname === '/portfolio'
+                    ? 'text-foreground bg-surface-hover'
+                    : 'text-muted hover:text-foreground hover:bg-surface-hover'
+                }`}
+              >
+                {t('portfolio.title')}
+              </Link>
+            )}
             {navGroups.map((group) => (
               <NavDropdown
                 key={group.label}
@@ -249,13 +268,10 @@ export function Header() {
               <ThemeToggle />
             </div>
 
-            {/* Desktop Create Agent */}
-            <a
-              href="/join"
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent-hover text-black rounded-lg text-sm font-medium transition-colors shrink-0"
-            >
-              {t('nav.createAgent')}
-            </a>
+            {/* Desktop Connect Wallet */}
+            <div className="hidden md:block">
+              <ConnectWallet />
+            </div>
 
             {/* Mobile hamburger */}
             <button
@@ -304,6 +320,22 @@ export function Header() {
                 {t('nav.markets')}
               </Link>
 
+              {/* Portfolio link - only when connected */}
+              {isConnected && (
+                <Link
+                  href="/portfolio"
+                  onClick={() => setMenuOpen(false)}
+                  className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    pathname === '/portfolio'
+                      ? 'text-foreground bg-surface-hover'
+                      : 'text-muted hover:text-foreground hover:bg-surface-hover'
+                  }`}
+                >
+                  <Briefcase size={14} className="text-muted-foreground" />
+                  {t('portfolio.title')}
+                </Link>
+              )}
+
               {navGroups.map((group) => (
                 <MobileNavSection
                   key={group.label}
@@ -334,16 +366,14 @@ export function Header() {
               <ThemeToggle />
             </div>
 
-            {/* Mobile Create Agent */}
-            <a
-              href="/join"
-              className="block text-center px-4 py-2.5 bg-accent hover:bg-accent-hover text-black rounded-lg text-sm font-medium transition-colors"
-            >
-              {t('nav.createAgent')}
-            </a>
+            {/* Mobile Connect Wallet */}
+            <div className="pt-2">
+              <ConnectWallet />
+            </div>
           </div>
         </div>
       )}
     </header>
+    </>
   );
 }
