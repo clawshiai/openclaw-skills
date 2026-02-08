@@ -177,7 +177,11 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(0,0,0,.6);ba
 .t-pct.yes{color:var(--success)}.t-pct.no{color:var(--danger)}.t-pct.neutral{color:var(--gold)}
 .t-bar{display:inline-block;height:6px;border-radius:3px;vertical-align:middle;min-width:20px}
 .t-bar.yes{background:linear-gradient(90deg,#16a34a,var(--success))}.t-bar.no{background:linear-gradient(90deg,var(--danger),#dc2626)}.t-bar.neutral{background:linear-gradient(90deg,#ca8a04,var(--gold))}
-.t-market{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin:4px 0}
+.t-market{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin:4px 0;transition:border-color .2s,background .2s}
+a.t-market-link{display:block;text-decoration:none;color:inherit;cursor:pointer}
+a.t-market-link:hover{border-color:var(--accent-border);background:rgba(255,255,255,.05)}
+a.t-market-link .t-q::after{content:'→';margin-left:6px;color:var(--accent);font-size:11px;opacity:0;transition:opacity .2s}
+a.t-market-link:hover .t-q::after{opacity:1}
 .t-market .t-q{font-size:13px;color:var(--fg);line-height:1.4;margin-bottom:6px;font-weight:600}
 .t-market .t-meta{font-size:11px;color:var(--subtle);line-height:1.5}
 .t-dual-bar{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:11px;font-weight:600;font-family:var(--font-h)}
@@ -745,6 +749,17 @@ function initTerminal() {
   const chips = document.querySelectorAll('.term-chip');
   if (!body || !form) return;
 
+  // Build market lookup: question text → market id
+  const marketLookup = {};
+  fetch(API + '/markets').then(r => r.json()).then(d => {
+    if (d.markets) d.markets.forEach(m => {
+      marketLookup[m.question.toLowerCase().trim()] = m.id;
+      // Also index partial matches by first 30 chars
+      const short = m.question.toLowerCase().trim().slice(0, 30);
+      if (!marketLookup[short]) marketLookup[short] = m.id;
+    });
+  }).catch(() => {});
+
   addMsg('bot', 'Welcome to Clawshi Terminal. Ask me anything about prediction markets, agents, or trends.');
 
   chips.forEach(chip => {
@@ -822,7 +837,16 @@ function initTerminal() {
           metaParts.push(d);
         }
       }
-      let html = '<div class="t-market"><div class="t-q">' + title + '</div>';
+      // Try to find market ID from question text for linking
+      let marketId = null;
+      const allText = [title, ...metaParts].join(' ').toLowerCase();
+      for (const [q, id] of Object.entries(marketLookup)) {
+        if (allText.includes(q.slice(0, 25))) { marketId = id; break; }
+      }
+
+      const tag = marketId ? '<a href="https://clawshi.app/market/' + marketId + '" target="_blank" class="t-market t-market-link">' : '<div class="t-market">';
+      const endTag = marketId ? '</a>' : '</div>';
+      let html = tag + '<div class="t-q">' + title + '</div>';
       if (metaParts.length) {
         const cleaned = metaParts.filter(m => m.trim()).map(m => {
           m = m.trim().replace(/^[-–—]\s*/, '').trim();
@@ -833,7 +857,7 @@ function initTerminal() {
         }).filter(Boolean);
         if (cleaned.length) html += '<div class="t-meta">' + cleaned.join(' · ') + '</div>';
       }
-      html += barHtml + '</div>';
+      html += barHtml + endTag;
       out += html;
       marketBuf = [];
       inMarket = false;
