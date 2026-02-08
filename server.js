@@ -1857,7 +1857,7 @@ async function handleAgentRoutes(path, req, res) {
 function runOpenClaw(message) {
   return new Promise((resolve, reject) => {
     const proc = spawn('/usr/bin/openclaw', [
-      'agent', '--local', '--agent', 'main', '--thinking', 'off', '--message', message
+      'agent', '--local', '--agent', 'main', '--thinking', 'off', '--json', '--message', message
     ], {
       env: {
         ...process.env,
@@ -1878,7 +1878,13 @@ function runOpenClaw(message) {
 
     proc.on('close', (code) => {
       if (code === 0) {
-        resolve(stdout.trim());
+        try {
+          const result = JSON.parse(stdout.trim());
+          const text = result.payloads?.[0]?.text || stdout.trim();
+          resolve(text);
+        } catch {
+          resolve(stdout.trim());
+        }
       } else {
         reject(new Error(stderr || `OpenClaw exited with code ${code}`));
       }
