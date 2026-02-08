@@ -177,10 +177,14 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(0,0,0,.6);ba
 .t-pct.yes{color:var(--success)}.t-pct.no{color:var(--danger)}.t-pct.neutral{color:var(--gold)}
 .t-bar{display:inline-block;height:6px;border-radius:3px;vertical-align:middle;min-width:20px}
 .t-bar.yes{background:linear-gradient(90deg,#16a34a,var(--success))}.t-bar.no{background:linear-gradient(90deg,var(--danger),#dc2626)}.t-bar.neutral{background:linear-gradient(90deg,#ca8a04,var(--gold))}
-.t-market{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin:4px 0}
-.t-market .t-q{font-size:12px;color:var(--fg);line-height:1.4;margin-bottom:4px}
-.t-market .t-meta{font-size:10px;color:var(--subtle)}
-.t-head{font-size:12px;font-weight:700;color:var(--accent);margin:6px 0 2px;font-family:var(--font-h)}
+.t-market{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin:4px 0}
+.t-market .t-q{font-size:13px;color:var(--fg);line-height:1.4;margin-bottom:6px;font-weight:600}
+.t-market .t-meta{font-size:11px;color:var(--subtle);line-height:1.5}
+.t-dual-bar{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:11px;font-weight:600;font-family:var(--font-h)}
+.t-dual-bar .db-yes{color:var(--success)}.t-dual-bar .db-no{color:var(--danger)}
+.t-dual-bar .db-track{flex:1;height:6px;border-radius:3px;background:var(--danger);overflow:hidden}
+.t-dual-bar .db-fill{height:100%;border-radius:3px;background:var(--success)}
+.t-head{font-size:11px;font-weight:600;color:var(--muted);margin:8px 0 4px;font-family:var(--font-h);text-transform:uppercase;letter-spacing:.5px;padding-bottom:4px;border-bottom:1px solid var(--border)}
 .term-suggestions{display:flex;gap:8px;padding:0 16px 12px;flex-wrap:wrap}
 .term-chip{font-size:12px;padding:6px 12px;background:transparent;border:1px solid var(--border);border-radius:var(--r-full);color:var(--muted);cursor:pointer;transition:all .2s;font-family:var(--font-b)}
 .term-chip:hover{border-color:var(--accent-border);color:var(--accent)}
@@ -802,9 +806,34 @@ function initTerminal() {
       if (!marketBuf.length) return;
       const title = marketBuf[0];
       const details = marketBuf.slice(1);
-      let html = '<div class="t-market"><div class="t-q"><strong>' + title + '</strong></div>';
-      if (details.length) html += '<div class="t-meta">' + details.join(' · ') + '</div>';
-      html += '</div>';
+      let barHtml = '';
+      let metaParts = [];
+      for (const d of details) {
+        if (d.includes('__DUALBAR__')) {
+          const m = d.match(/__DUALBAR__(\d+\.?\d*)__/);
+          if (m) {
+            const yp = parseFloat(m[1]);
+            const np = Math.round((100 - yp) * 10) / 10;
+            barHtml = '<div class="t-dual-bar"><span class="db-yes">' + yp + '%</span><div class="db-track"><div class="db-fill" style="width:' + yp + '%"></div></div><span class="db-no">' + np + '%</span></div>';
+          }
+          const extra = d.replace(/__DUALBAR__\d+\.?\d*__/, '').trim();
+          if (extra) metaParts.push(extra);
+        } else {
+          metaParts.push(d);
+        }
+      }
+      let html = '<div class="t-market"><div class="t-q">' + title + '</div>';
+      if (metaParts.length) {
+        const cleaned = metaParts.filter(m => m.trim()).map(m => {
+          m = m.trim().replace(/^[-–—]\s*/, '').trim();
+          m = m.replace(/^(Question|Signal|Probability|Confidence|Resolution\s*Date)\s*:\s*/i, '');
+          m = m.replace(/^["""'']+|["""'']+$/g, '').trim();
+          if (!m || /^(Probability|Resolution|Resolves)\s*:?\s*$/i.test(m)) return '';
+          return m;
+        }).filter(Boolean);
+        if (cleaned.length) html += '<div class="t-meta">' + cleaned.join(' · ') + '</div>';
+      }
+      html += barHtml + '</div>';
       out += html;
       marketBuf = [];
       inMarket = false;
@@ -813,17 +842,31 @@ function initTerminal() {
     for (let i = 0; i < lines.length; i++) {
       let line = lines[i];
 
-      // Percentage with YES/NO — render as colored badge + mini bar
-      line = line.replace(/(\d+\.?\d*)%\s*(YES|NO|NEUTRAL)/gi, (_, pct, dir) => {
-        const p = parseFloat(pct);
-        const cls = dir.toUpperCase() === 'YES' ? 'yes' : dir.toUpperCase() === 'NO' ? 'no' : 'neutral';
-        return '<span class="t-pct ' + cls + '"><span class="t-bar ' + cls + '" style="width:' + Math.max(p * 0.6, 12) + 'px"></span> ' + pct + '% ' + dir + '</span>';
-      });
+      // Percentage with YES/NO — render as dual bar (green + red)
+      const pctMatch = line.match(/(\d+\.?\d*)%\s*(YES)/i);
+      if (pctMatch) {
+        const yp = parseFloat(pctMatch[1]);
+        const np = Math.round((100 - yp) * 10) / 10;
+        line = line.replace(/(\d+\.?\d*)%\s*(YES)/i, '');
+        // Remove leftover NO percentage if present
+        line = line.replace(/(\d+\.?\d*)%\s*(NO)/i, '');
+        line = line.replace(/[·\-,\s]+$/, '').replace(/^[·\-,\s]+/, '');
+        // Store bar to append after market card or inline
+        line = line + '\n__DUALBAR__' + yp + '__';
+      } else {
+        // Standalone NO percentage
+        line = line.replace(/(\d+\.?\d*)%\s*(NO|NEUTRAL)/gi, (_, pct, dir) => {
+          const p = parseFloat(pct);
+          const cls = dir.toUpperCase() === 'NO' ? 'no' : 'neutral';
+          return '<span class="t-pct ' + cls + '"><span class="t-bar ' + cls + '" style="width:' + Math.max(p * 0.6, 12) + 'px"></span> ' + pct + '% ' + dir + '</span>';
+        });
+      }
 
-      // Emoji headers (lines starting with emoji like 🔝 🚀)
-      if (/^[\u{1F300}-\u{1FAF8}]/u.test(line.trim()) && line.trim().length > 2) {
+      // Emoji headers — strip emojis, keep text only
+      if (/^[\u{1F300}-\u{1FAF8}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}]/u.test(line.trim()) && line.trim().length > 2) {
         flushMarket();
-        out += '<div class="t-head">' + line + '</div>';
+        const headerText = line.trim().replace(/[\u{1F300}-\u{1FAF8}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}\u{20E3}]/gu, '').trim();
+        if (headerText) out += '<div class="t-head">' + headerText + '</div>';
         continue;
       }
 
@@ -837,8 +880,8 @@ function initTerminal() {
       }
 
       // Dash line inside market block (percentage or question)
-      if (inMarket && line.match(/^-\s+/)) {
-        marketBuf.push(line.replace(/^-\s+/, ''));
+      if (inMarket && line.trim().match(/^-\s+/)) {
+        marketBuf.push(line.trim().replace(/^-\s+/, ''));
         continue;
       }
 
@@ -858,6 +901,18 @@ function initTerminal() {
       // Skip fluff lines
       if (/^(Based on|I('ll| will)|Here are|Let me|Would you like)/i.test(line.trim())) continue;
 
+      // Render inline dual bar for non-market lines
+      if (line.includes('__DUALBAR__')) {
+        const m = line.match(/__DUALBAR__(\d+\.?\d*)__/);
+        if (m) {
+          const yp = parseFloat(m[1]);
+          const np = Math.round((100 - yp) * 10) / 10;
+          const text = line.replace(/__DUALBAR__\d+\.?\d*__/, '').replace(/\n/g, '').trim();
+          if (text) out += text + '<br>';
+          out += '<div class="t-dual-bar"><span class="db-yes">' + yp + '%</span><div class="db-track"><div class="db-fill" style="width:' + yp + '%"></div></div><span class="db-no">' + np + '%</span></div>';
+        }
+        continue;
+      }
       if (line.trim()) out += line + '<br>';
     }
     flushMarket();
