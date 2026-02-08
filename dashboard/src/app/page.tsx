@@ -5,10 +5,13 @@ import { Market, Stats, getMarkets, getStats } from '@/lib/api';
 import { MarketCard } from '@/components/MarketCard';
 import { StatsCard } from '@/components/StatsCard';
 import { Header } from '@/components/Header';
-import { BarChart3, Users, Vote, FileText, Loader2, AlertCircle, Trophy, User, Bot, Terminal, Copy, Check } from 'lucide-react';
+import { BarChart3, Users, Vote, FileText, Loader2, AlertCircle, Trophy, User, Bot, Terminal, Copy, Check, Coins } from 'lucide-react';
 import { Footer } from '@/components/Footer';
+import { ClawshiMarketsSection } from '@/components/ClawshiMarketsSection';
 import Image from 'next/image';
 import { useLanguage } from '@/i18n/LanguageContext';
+
+type SourceTab = 'moltbook' | 'clawshi';
 
 // Merge granular DB categories into display groups
 const categoryGroups: Record<string, string[]> = {
@@ -157,6 +160,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [sourceTab, setSourceTab] = useState<SourceTab>('moltbook');
   const [splash, setSplash] = useState(true);
   const [splashFading, setSplashFading] = useState(false);
 
@@ -331,36 +335,69 @@ export default function Home() {
           </div>
         )}
 
-        {/* Category Filter */}
-        <div className="mb-8 overflow-x-auto scrollbar-hide">
-          <div className="flex gap-2 pb-2">
-            <button
-              onClick={() => setSelectedCategory('all')}
-              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
-                selectedCategory === 'all'
-                  ? 'bg-teal-600 text-white'
-                  : 'bg-surface-hover border border-border-hover text-muted hover:border-teal-600/50 hover:text-foreground'
-              }`}
-            >
-              All
-            </button>
-            {categoryOrder.map((group) => (
-              <button
-                key={group}
-                onClick={() => setSelectedCategory(group)}
-                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
-                  selectedCategory === group
-                    ? 'bg-teal-600 text-white'
-                    : 'bg-surface-hover border border-border-hover text-muted hover:border-teal-600/50 hover:text-foreground'
-                }`}
-              >
-                {categoryDisplayNames[group]}
-              </button>
-            ))}
-          </div>
+        {/* Source Tabs */}
+        <div className="flex gap-3 mb-6">
+          <button
+            onClick={() => setSourceTab('moltbook')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
+              sourceTab === 'moltbook'
+                ? 'bg-[#E53935] text-white shadow-lg shadow-red-500/20'
+                : 'bg-surface-hover border border-border-hover text-muted hover:border-red-500/50 hover:text-foreground'
+            }`}
+          >
+            <Image src="/moltbook-logo.png" alt="Moltbook" width={20} height={20} className="rounded" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+            {t('source.moltbook')}
+          </button>
+          <button
+            onClick={() => setSourceTab('clawshi')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
+              sourceTab === 'clawshi'
+                ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/20'
+                : 'bg-surface-hover border border-border-hover text-muted hover:border-teal-600/50 hover:text-foreground'
+            }`}
+          >
+            <Coins size={18} />
+            {t('source.clawshi')}
+          </button>
         </div>
 
-        {/* Markets Section */}
+        {/* Source description */}
+        <p className="text-sm text-muted-foreground mb-6">
+          {sourceTab === 'moltbook' ? t('source.moltbookDesc') : t('source.clawshiDesc')}
+        </p>
+
+        {sourceTab === 'moltbook' ? (
+          <>
+            {/* Category Filter */}
+            <div className="mb-8 overflow-x-auto scrollbar-hide">
+              <div className="flex gap-2 pb-2">
+                <button
+                  onClick={() => setSelectedCategory('all')}
+                  className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
+                    selectedCategory === 'all'
+                      ? 'bg-teal-600 text-white'
+                      : 'bg-surface-hover border border-border-hover text-muted hover:border-teal-600/50 hover:text-foreground'
+                  }`}
+                >
+                  All
+                </button>
+                {categoryOrder.map((group) => (
+                  <button
+                    key={group}
+                    onClick={() => setSelectedCategory(group)}
+                    className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
+                      selectedCategory === group
+                        ? 'bg-teal-600 text-white'
+                        : 'bg-surface-hover border border-border-hover text-muted hover:border-teal-600/50 hover:text-foreground'
+                    }`}
+                  >
+                    {categoryDisplayNames[group]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Markets Section */}
         <div className="mb-8">
           {(() => {
             const filtered = selectedCategory === 'all'
@@ -404,7 +441,11 @@ export default function Home() {
               </>
             );
           })()}
-        </div>
+            </div>
+          </>
+        ) : (
+          <ClawshiMarketsSection />
+        )}
 
       </main>
 

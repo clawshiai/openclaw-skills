@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { Search, X, Menu, TrendingUp, Trophy, Lightbulb, BookOpen, Terminal, Bot, FileCode, Coins, Activity, ExternalLink, Briefcase } from 'lucide-react';
+import { Search, X, Menu, TrendingUp, Trophy, Lightbulb, BookOpen, Terminal, Bot, FileCode, Activity, ExternalLink, Briefcase } from 'lucide-react';
 import { Market, getMarkets } from '@/lib/api';
 import { ThemeToggle } from './ThemeToggle';
 import { LanguageToggle } from './LanguageToggle';
@@ -42,7 +42,6 @@ export function Header() {
       items: [
         { label: t('nav.terminal'), href: '/terminal', icon: <Terminal size={14} /> },
         { label: t('nav.bot'), href: '/bot', icon: <Bot size={14} /> },
-        { label: t('nav.staking'), href: '/staking', icon: <Coins size={14} /> },
       ],
     },
     {
