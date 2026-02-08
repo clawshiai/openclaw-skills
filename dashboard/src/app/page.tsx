@@ -336,29 +336,31 @@ export default function Home() {
         )}
 
         {/* Source Tabs */}
-        <div className="flex gap-3 mb-6">
-          <button
-            onClick={() => setSourceTab('moltbook')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
-              sourceTab === 'moltbook'
-                ? 'bg-[#E53935] text-white shadow-lg shadow-red-500/20'
-                : 'bg-surface-hover border border-border-hover text-muted hover:border-red-500/50 hover:text-foreground'
-            }`}
-          >
-            <MessageSquare size={18} />
-            {t('source.moltbook')}
-          </button>
-          <button
-            onClick={() => setSourceTab('clawshi')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
-              sourceTab === 'clawshi'
-                ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/20'
-                : 'bg-surface-hover border border-border-hover text-muted hover:border-teal-600/50 hover:text-foreground'
-            }`}
-          >
-            <Coins size={18} />
-            {t('source.clawshi')}
-          </button>
+        <div className="mb-6">
+          <div className="inline-flex bg-surface-hover border border-border-hover rounded-lg p-1">
+            <button
+              onClick={() => setSourceTab('moltbook')}
+              className={`flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                sourceTab === 'moltbook'
+                  ? 'bg-teal-600 text-white'
+                  : 'text-muted hover:text-foreground hover:bg-border'
+              }`}
+            >
+              <MessageSquare size={16} />
+              {t('source.moltbook')}
+            </button>
+            <button
+              onClick={() => setSourceTab('clawshi')}
+              className={`flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                sourceTab === 'clawshi'
+                  ? 'bg-teal-600 text-white'
+                  : 'text-muted hover:text-foreground hover:bg-border'
+              }`}
+            >
+              <Coins size={16} />
+              {t('source.clawshi')}
+            </button>
+          </div>
         </div>
 
         {/* Source description */}
