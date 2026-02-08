@@ -342,7 +342,7 @@ export default function Home() {
               onClick={() => setSourceTab('moltbook')}
               className={`flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 sourceTab === 'moltbook'
-                  ? 'bg-teal-600 text-white'
+                  ? 'bg-[#E53935] text-white'
                   : 'text-muted hover:text-foreground hover:bg-border'
               }`}
             >
