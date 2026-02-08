@@ -4,11 +4,12 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { Search, X, Menu } from 'lucide-react';
+import { Search, X, Menu, TrendingUp, Trophy, Lightbulb, BookOpen, Terminal, Bot, FileCode, Coins, Activity, ExternalLink } from 'lucide-react';
 import { Market, getMarkets } from '@/lib/api';
 import { ThemeToggle } from './ThemeToggle';
 import { LanguageToggle } from './LanguageToggle';
 import { useLanguage } from '@/i18n/LanguageContext';
+import { NavDropdown, MobileNavSection } from './NavDropdown';
 
 export function Header() {
   const pathname = usePathname();
@@ -22,15 +23,40 @@ export function Header() {
   const inputRef = useRef<HTMLInputElement>(null);
   const mobileInputRef = useRef<HTMLInputElement>(null);
 
-  const navItems = [
-    { label: t('nav.markets'), href: '/' },
-    { label: t('nav.research'), href: '/research' },
-    { label: t('nav.ideas'), href: '/ideas' },
-    { label: t('nav.leaderboard'), href: '/leaderboard' },
-    { label: t('nav.terminal'), href: '/terminal' },
-    { label: t('nav.bot'), href: '/bot' },
-    { label: t('nav.api'), href: '/api-docs' },
-    { label: t('nav.status'), href: '/status' },
+  // Navigation structure with dropdowns
+  const navGroups = [
+    {
+      label: t('nav.markets'),
+      items: [
+        { label: t('nav.marketsActive'), href: '/', icon: <TrendingUp size={14} /> },
+        { label: t('nav.marketsResolved'), href: '/markets/resolved', icon: <Activity size={14} /> },
+        { label: t('nav.marketsTrending'), href: '/markets/trending', icon: <TrendingUp size={14} /> },
+      ],
+    },
+    {
+      label: t('nav.community'),
+      items: [
+        { label: t('nav.leaderboard'), href: '/leaderboard', icon: <Trophy size={14} /> },
+        { label: t('nav.ideas'), href: '/ideas', icon: <Lightbulb size={14} /> },
+        { label: t('nav.research'), href: '/research', icon: <BookOpen size={14} /> },
+      ],
+    },
+    {
+      label: t('nav.tools'),
+      items: [
+        { label: t('nav.terminal'), href: '/terminal', icon: <Terminal size={14} /> },
+        { label: t('nav.bot'), href: '/bot', icon: <Bot size={14} /> },
+        { label: t('nav.staking'), href: '/staking', icon: <Coins size={14} /> },
+      ],
+    },
+    {
+      label: t('nav.developers'),
+      items: [
+        { label: t('nav.api'), href: '/api-docs', icon: <FileCode size={14} /> },
+        { label: t('nav.sdk'), href: 'https://www.npmjs.com/package/@clawshi/sdk', icon: <ExternalLink size={14} />, external: true },
+        { label: t('nav.contracts'), href: '/contracts', icon: <FileCode size={14} /> },
+      ],
+    },
   ];
 
   // Fetch markets for search
@@ -133,7 +159,7 @@ export function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center h-14">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 sm:gap-3 group mr-4 sm:mr-8 shrink-0">
+          <Link href="/" className="flex items-center gap-2 sm:gap-3 group mr-4 sm:mr-6 shrink-0">
             <Image
               src="/logo.png"
               alt="Clawshi"
@@ -149,24 +175,26 @@ export function Header() {
             </span>
           </Link>
 
-          {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-1 shrink-0">
-            {navItems.map((item) => {
-              const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-                    isActive
-                      ? 'text-foreground bg-surface-hover'
-                      : 'text-muted hover:text-foreground hover:bg-surface-hover'
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
+          {/* Desktop Nav with Dropdowns */}
+          <nav className="hidden md:flex items-center gap-0.5 shrink-0">
+            {navGroups.map((group) => (
+              <NavDropdown
+                key={group.label}
+                label={group.label}
+                items={group.items}
+              />
+            ))}
+            {/* Status as direct link */}
+            <Link
+              href="/status"
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                pathname === '/status'
+                  ? 'text-foreground bg-surface-hover'
+                  : 'text-muted hover:text-foreground hover:bg-surface-hover'
+              }`}
+            >
+              {t('nav.status')}
+            </Link>
           </nav>
 
           {/* Right side */}
@@ -257,28 +285,34 @@ export function Header() {
               {searchResults}
             </div>
 
-            {/* Mobile Nav */}
-            <nav className="space-y-1">
-              {navItems.map((item) => {
-                const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                      isActive
-                        ? 'text-foreground bg-surface-hover'
-                        : 'text-muted hover:text-foreground hover:bg-surface-hover'
-                    }`}
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
+            {/* Mobile Nav with Sections */}
+            <nav className="space-y-2">
+              {navGroups.map((group) => (
+                <MobileNavSection
+                  key={group.label}
+                  label={group.label}
+                  items={group.items}
+                  onNavigate={() => setMenuOpen(false)}
+                />
+              ))}
+
+              {/* Status as standalone */}
+              <Link
+                href="/status"
+                onClick={() => setMenuOpen(false)}
+                className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  pathname === '/status'
+                    ? 'text-foreground bg-surface-hover'
+                    : 'text-muted hover:text-foreground hover:bg-surface-hover'
+                }`}
+              >
+                <Activity size={14} className="text-muted-foreground" />
+                {t('nav.status')}
+              </Link>
             </nav>
 
             {/* Mobile Toggles */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 pt-2 border-t border-border">
               <LanguageToggle />
               <ThemeToggle />
             </div>
