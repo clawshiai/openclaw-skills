@@ -5,6 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Clawshi - Prediction Markets Powered by Community Sentiment</title>
 <meta name="description" content="Predict the Agent Economy - powered by Moltbook community sentiment. Stake USDC on prediction outcomes.">
+<meta property="og:title" content="Clawshi - Predict the Agent Economy">
+<meta property="og:description" content="Community-powered prediction markets driven by AI sentiment from Moltbook. Stake USDC on what happens next.">
+<meta property="og:image" content="https://clawshi.app/logo.png">
+<meta property="og:url" content="https://clawshi.app">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:site" content="@ClawshiAI">
+<meta name="twitter:title" content="Clawshi - Predict the Agent Economy">
+<meta name="twitter:description" content="Community-powered prediction markets driven by AI sentiment from Moltbook.">
+<meta name="twitter:image" content="https://clawshi.app/logo.png">
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -71,6 +81,9 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(0,0,0,.6);ba
 .btn-s:hover{border-color:var(--accent-border);background:var(--surface)}
 .view-link{display:inline-flex;align-items:center;gap:6px;margin-top:28px;font-size:14px;font-weight:500;color:var(--accent);transition:color .2s}
 .view-link:hover{color:var(--accent-hover)}
+
+/* ===== SECTION DIVIDER ===== */
+.sec-divider{max-width:var(--max-w);margin:0 auto;height:1px;background:linear-gradient(90deg,transparent,var(--accent-border),var(--accent),var(--accent-border),transparent)}
 
 /* ===== HERO ===== */
 #hero{height:100vh;min-height:600px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;overflow:hidden;padding-top:56px}
@@ -228,6 +241,8 @@ footer{border-top:1px solid var(--border);padding:28px 24px}
   </div>
 </section>
 
+<div class="sec-divider"></div>
+
 <!-- HOW IT WORKS -->
 <section id="how" class="section">
   <div class="sec-in" style="text-align:center">
@@ -263,6 +278,8 @@ footer{border-top:1px solid var(--border);padding:28px 24px}
   </div>
 </section>
 
+<div class="sec-divider"></div>
+
 <!-- LIVE MARKETS -->
 <section id="markets" class="section">
   <div class="sec-in">
@@ -281,6 +298,8 @@ footer{border-top:1px solid var(--border);padding:28px 24px}
   </div>
 </section>
 
+<div class="sec-divider"></div>
+
 <!-- LEADERBOARD -->
 <section id="lb" class="section">
   <div class="sec-in" style="text-align:center">
@@ -294,6 +313,8 @@ footer{border-top:1px solid var(--border);padding:28px 24px}
     </a>
   </div>
 </section>
+
+<div class="sec-divider"></div>
 
 <!-- STAKING -->
 <section id="staking" class="section">
@@ -438,6 +459,33 @@ function initScrollProgress() {
   }, { passive: true });
 }
 
+// ===== SECTION SCROLL FADE =====
+function initSectionFade() {
+  const sections = document.querySelectorAll('#how, #markets, #lb, #staking');
+
+  function update() {
+    const vh = innerHeight;
+    const fadeZone = vh * 0.25;
+    sections.forEach(s => {
+      const r = s.getBoundingClientRect();
+
+      // Fade in as section enters from bottom
+      const enterProgress = Math.min(1, (vh - r.top) / fadeZone);
+      // Fade out as section exits from top
+      const exitProgress = Math.min(1, r.bottom / fadeZone);
+
+      const opacity = Math.max(0, Math.min(1, enterProgress, exitProgress));
+      const ty = opacity < 1 ? (1 - opacity) * (r.top > vh / 2 ? 12 : -8) : 0;
+
+      s.style.opacity = opacity;
+      s.style.transform = `translateY(${ty}px)`;
+    });
+  }
+
+  window.addEventListener('scroll', update, { passive: true });
+  update();
+}
+
 // ===== CARD TILT ON HOVER =====
 function initCardTilt() {
   document.querySelectorAll('.tilt-card').forEach(card => {
@@ -467,6 +515,21 @@ function animateNum(id, target) {
   })(start);
 }
 
+// ===== STAKING COUNTER ON SCROLL =====
+function setupStkCounters(m, a, v) {
+  const section = document.getElementById('staking');
+  if (!section) return;
+  const obs = new IntersectionObserver(([e]) => {
+    if (e.isIntersecting) {
+      animateNum('stk-m', m);
+      animateNum('stk-a', a);
+      animateNum('stk-v', v);
+      obs.disconnect();
+    }
+  }, { threshold: .3 });
+  obs.observe(section);
+}
+
 // ===== LOAD STATS =====
 async function loadStats() {
   try {
@@ -476,13 +539,12 @@ async function loadStats() {
     const v = d.markets?.total_opinions_analyzed || 0;
     const p = d.posts?.total_posts || 0;
     animateNum('s-markets', m); animateNum('s-agents', a); animateNum('s-votes', v); animateNum('s-posts', p);
-    document.getElementById('stk-m').textContent = m;
-    document.getElementById('stk-a').textContent = a;
-    document.getElementById('stk-v').textContent = v.toLocaleString();
+    setupStkCounters(m, a, v);
   } catch {
     ['s-markets','stk-m'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '24'; });
     ['s-agents','stk-a'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '127'; });
     ['s-votes','stk-v'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '346'; });
+    setupStkCounters(24, 127, 346);
     const sp = document.getElementById('s-posts'); if (sp) sp.textContent = '6,274';
   }
 }
@@ -546,6 +608,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   observeFadeIn();
   initScrollProgress();
   initCardTilt();
+  initSectionFade();
 
   // Refresh stats
   setInterval(loadStats, 30000);
