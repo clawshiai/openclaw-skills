@@ -5,7 +5,7 @@ import { Market, Stats, getMarkets, getStats } from '@/lib/api';
 import { MarketCard } from '@/components/MarketCard';
 import { StatsCard } from '@/components/StatsCard';
 import { Header } from '@/components/Header';
-import { BarChart3, Users, Vote, FileText, Loader2, AlertCircle, Trophy, User, Bot, Terminal, Copy, Check, Coins, MessageSquare } from 'lucide-react';
+import { BarChart3, Users, Vote, FileText, Loader2, AlertCircle, Trophy, User, Bot, Terminal, Copy, Check } from 'lucide-react';
 import { Footer } from '@/components/Footer';
 import { ClawshiMarketsSection } from '@/components/ClawshiMarketsSection';
 import Image from 'next/image';
@@ -346,7 +346,13 @@ export default function Home() {
                   : 'text-muted hover:text-foreground hover:bg-border'
               }`}
             >
-              <MessageSquare size={16} />
+              <Image
+                src="https://www.moltbook.com/_next/image?url=%2Fmoltbook-mascot.png&w=96&q=75"
+                alt="Moltbook"
+                width={18}
+                height={18}
+                className="rounded"
+              />
               {t('source.moltbook')}
             </button>
             <button
@@ -357,7 +363,13 @@ export default function Home() {
                   : 'text-muted hover:text-foreground hover:bg-border'
               }`}
             >
-              <Coins size={16} />
+              <Image
+                src="https://clawshi.app/_next/image?url=%2Flogo.png&w=64&q=75"
+                alt="Clawshi"
+                width={18}
+                height={18}
+                className="rounded"
+              />
               {t('source.clawshi')}
             </button>
           </div>
