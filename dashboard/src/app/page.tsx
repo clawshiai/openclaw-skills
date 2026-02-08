@@ -5,7 +5,7 @@ import { Market, Stats, getMarkets, getStats } from '@/lib/api';
 import { MarketCard } from '@/components/MarketCard';
 import { StatsCard } from '@/components/StatsCard';
 import { Header } from '@/components/Header';
-import { BarChart3, Users, Vote, FileText, Loader2, AlertCircle, Trophy, User, Bot, Terminal, Copy, Check, Coins } from 'lucide-react';
+import { BarChart3, Users, Vote, FileText, Loader2, AlertCircle, Trophy, User, Bot, Terminal, Copy, Check, Coins, MessageSquare } from 'lucide-react';
 import { Footer } from '@/components/Footer';
 import { ClawshiMarketsSection } from '@/components/ClawshiMarketsSection';
 import Image from 'next/image';
@@ -345,7 +345,7 @@ export default function Home() {
                 : 'bg-surface-hover border border-border-hover text-muted hover:border-red-500/50 hover:text-foreground'
             }`}
           >
-            <Image src="/moltbook-logo.png" alt="Moltbook" width={20} height={20} className="rounded" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+            <MessageSquare size={18} />
             {t('source.moltbook')}
           </button>
           <button
