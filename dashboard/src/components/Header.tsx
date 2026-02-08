@@ -26,14 +26,6 @@ export function Header() {
   // Navigation structure with dropdowns
   const navGroups = [
     {
-      label: t('nav.markets'),
-      items: [
-        { label: t('nav.marketsActive'), href: '/', icon: <TrendingUp size={14} /> },
-        { label: t('nav.marketsResolved'), href: '/markets/resolved', icon: <Activity size={14} /> },
-        { label: t('nav.marketsTrending'), href: '/markets/trending', icon: <TrendingUp size={14} /> },
-      ],
-    },
-    {
       label: t('nav.community'),
       items: [
         { label: t('nav.leaderboard'), href: '/leaderboard', icon: <Trophy size={14} /> },
@@ -177,6 +169,17 @@ export function Header() {
 
           {/* Desktop Nav with Dropdowns */}
           <nav className="hidden md:flex items-center gap-0.5 shrink-0">
+            {/* Markets as direct link */}
+            <Link
+              href="/"
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                pathname === '/'
+                  ? 'text-foreground bg-surface-hover'
+                  : 'text-muted hover:text-foreground hover:bg-surface-hover'
+              }`}
+            >
+              {t('nav.markets')}
+            </Link>
             {navGroups.map((group) => (
               <NavDropdown
                 key={group.label}
@@ -287,6 +290,20 @@ export function Header() {
 
             {/* Mobile Nav with Sections */}
             <nav className="space-y-2">
+              {/* Markets as direct link */}
+              <Link
+                href="/"
+                onClick={() => setMenuOpen(false)}
+                className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  pathname === '/'
+                    ? 'text-foreground bg-surface-hover'
+                    : 'text-muted hover:text-foreground hover:bg-surface-hover'
+                }`}
+              >
+                <TrendingUp size={14} className="text-muted-foreground" />
+                {t('nav.markets')}
+              </Link>
+
               {navGroups.map((group) => (
                 <MobileNavSection
                   key={group.label}
