@@ -751,12 +751,17 @@ function initTerminal() {
 
   // Build market lookup: question text → market id
   const marketLookup = {};
+  const marketKw = []; // [{id, words}] for keyword fallback
+  const stopWords = ['will','that','this','than','from','with','have','been','does','more','most','above','below','before','after','another','still','daily','monthly','gets','stay','stays'];
+  function normalize(s) { return s.toLowerCase().replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim(); }
   fetch(API + '/markets').then(r => r.json()).then(d => {
     if (d.markets) d.markets.forEach(m => {
-      marketLookup[m.question.toLowerCase().trim()] = m.id;
-      // Also index partial matches by first 30 chars
-      const short = m.question.toLowerCase().trim().slice(0, 30);
-      if (!marketLookup[short]) marketLookup[short] = m.id;
+      const q = normalize(m.question);
+      marketLookup[q] = m.id;
+      marketLookup[q.slice(0, 30)] = m.id;
+      // Keywords for fuzzy matching (4+ char, non-stop)
+      const words = q.split(' ').filter(w => w.length >= 4 && !stopWords.includes(w));
+      marketKw.push({ id: m.id, words });
     });
   }).catch(() => {});
 
@@ -839,9 +844,19 @@ function initTerminal() {
       }
       // Try to find market ID from question text for linking
       let marketId = null;
-      const allText = [title, ...metaParts].join(' ').toLowerCase();
+      const allText = normalize([title, ...metaParts].join(' '));
+      // 1. Exact substring match
       for (const [q, id] of Object.entries(marketLookup)) {
-        if (allText.includes(q.slice(0, 25))) { marketId = id; break; }
+        if (allText.includes(q.slice(0, 20))) { marketId = id; break; }
+      }
+      // 2. Keyword fallback: match 2+ significant words
+      if (!marketId) {
+        const words = allText.split(' ').filter(w => w.length >= 4 && !stopWords.includes(w));
+        let best = 0;
+        for (const m of marketKw) {
+          const score = m.words.filter(k => words.includes(k)).length;
+          if (score > best && score >= 2) { best = score; marketId = m.id; }
+        }
       }
 
       const tag = marketId ? '<a href="https://clawshi.app/market/' + marketId + '" target="_blank" class="t-market t-market-link">' : '<div class="t-market">';
