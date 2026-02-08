@@ -1,6 +1,8 @@
+import 'dotenv/config';
 import { createServer } from 'http';
 import { randomBytes } from 'crypto';
 import { readFileSync } from 'fs';
+import { spawn } from 'child_process';
 import Database from 'better-sqlite3';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -105,6 +107,19 @@ db.exec(`
     PRIMARY KEY (research_id, market_id),
     FOREIGN KEY (research_id) REFERENCES research(id),
     FOREIGN KEY (market_id) REFERENCES markets(id)
+  );
+`);
+
+// Health history tracking — store daily snapshots
+db.exec(`
+  CREATE TABLE IF NOT EXISTS health_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT NOT NULL,
+    service TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'operational',
+    latency_ms INTEGER,
+    checked_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(date, service)
   );
 `);
 
@@ -403,6 +418,141 @@ const routes = {
         step3: 'Stake on a market: contract.stake(marketIndex, isYes, amount)',
         step4: 'After resolution, claim winnings: contract.claim(marketIndex)'
       }
+    });
+  },
+
+  // GET /health - System health check
+  '/health': async (req, res) => {
+    const start = Date.now();
+    const services = {};
+
+    // Check database
+    try {
+      const dbStart = Date.now();
+      const marketCount = db.prepare('SELECT COUNT(*) as count FROM markets').get();
+      const agentCount = db.prepare('SELECT COUNT(*) as count FROM agents').get();
+      const researchCount = db.prepare('SELECT COUNT(*) as count FROM research').get();
+      const voteCount = db.prepare('SELECT COUNT(*) as count FROM votes').get();
+      services.database = {
+        status: 'operational',
+        latency_ms: Date.now() - dbStart
+      };
+      services.markets = { status: 'operational', count: marketCount.count };
+      services.research = { status: 'operational', count: researchCount.count };
+      services.agents = { status: 'operational', count: agentCount.count };
+      services.votes = { status: 'operational', count: voteCount.count };
+    } catch (e) {
+      services.database = { status: 'down', error: 'Database query failed' };
+      services.markets = { status: 'down' };
+      services.research = { status: 'down' };
+      services.agents = { status: 'down' };
+      services.votes = { status: 'down' };
+    }
+
+    // Check Moltbook API endpoints
+    const moltbookChecks = [
+      { key: 'mb_recent_agents', url: 'https://www.moltbook.com/api/v1/agents/recent?limit=1&sort=recent' },
+      { key: 'mb_new_posts', url: 'https://www.moltbook.com/api/v1/posts?limit=1&sort=new' },
+      { key: 'mb_top_posts', url: 'https://www.moltbook.com/api/v1/posts?limit=1&sort=top&time=day' },
+      { key: 'mb_top_humans', url: 'https://www.moltbook.com/api/v1/agents/top-humans?limit=1' },
+    ];
+    await Promise.all(moltbookChecks.map(async ({ key, url }) => {
+      try {
+        const mbStart = Date.now();
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        const mbRes = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeout);
+        services[key] = {
+          status: mbRes.ok ? 'operational' : 'degraded',
+          latency_ms: Date.now() - mbStart
+        };
+      } catch (e) {
+        services[key] = { status: 'down', error: 'Connection failed' };
+      }
+    }));
+
+    // Overall status
+    const statuses = Object.values(services).map(s => s.status);
+    let overall = 'operational';
+    if (statuses.includes('down') && services.database?.status === 'down') {
+      overall = 'down';
+    } else if (statuses.includes('down') || statuses.includes('degraded')) {
+      overall = 'degraded';
+    }
+
+    // Record hourly status per service (date = YYYY-MM-DD-HH)
+    const now2 = new Date();
+    const hour = now2.toISOString().slice(0, 13).replace('T', '-'); // "2026-02-04-11"
+    const upsert = db.prepare(`
+      INSERT INTO health_history (date, service, status, latency_ms)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(date, service) DO UPDATE SET
+        status = excluded.status,
+        latency_ms = excluded.latency_ms,
+        checked_at = CURRENT_TIMESTAMP
+    `);
+    for (const [svc, info] of Object.entries(services)) {
+      upsert.run(hour, svc, info.status, info.latency_ms ?? null);
+    }
+
+    sendJSON(res, {
+      success: true,
+      status: overall,
+      uptime_seconds: Math.floor(process.uptime()),
+      services,
+      timestamp: new Date().toISOString()
+    });
+  },
+
+  // GET /health/history - hourly health history per service (default 7 days = 168 hours)
+  '/health/history': (req, res) => {
+    const { params } = parseURL(req.url);
+    const days = Math.min(parseInt(params.get('days') || '7', 10), 30);
+    const sinceMs = Date.now() - days * 86400000;
+    const sinceHour = new Date(sinceMs).toISOString().slice(0, 13).replace('T', '-');
+
+    const rows = db.prepare(`
+      SELECT date, service, status, latency_ms
+      FROM health_history
+      WHERE date >= ?
+      ORDER BY date ASC
+    `).all(sinceHour);
+
+    // Group by service
+    const history = {};
+    for (const row of rows) {
+      if (!history[row.service]) history[row.service] = [];
+      history[row.service].push({
+        date: row.date,
+        status: row.status,
+        latency_ms: row.latency_ms
+      });
+    }
+
+    // Fill missing hours with 'no_data'
+    const allServices = ['database', 'markets', 'research', 'agents', 'votes', 'mb_recent_agents', 'mb_new_posts', 'mb_top_posts', 'mb_top_humans'];
+    const hourList = [];
+    for (let t = new Date(sinceMs); t <= new Date(); t.setHours(t.getHours() + 1)) {
+      hourList.push(t.toISOString().slice(0, 13).replace('T', '-'));
+    }
+
+    for (const svc of allServices) {
+      const existing = new Set((history[svc] || []).map(h => h.date));
+      if (!history[svc]) history[svc] = [];
+      for (const hour of hourList) {
+        if (!existing.has(hour)) {
+          history[svc].push({ date: hour, status: 'no_data', latency_ms: null });
+        }
+      }
+      history[svc].sort((a, b) => a.date.localeCompare(b.date));
+    }
+
+    sendJSON(res, {
+      success: true,
+      days,
+      since: sinceHour,
+      services: history
     });
   },
 
@@ -1434,7 +1584,72 @@ async function handleAgentRoutes(path, req, res) {
     });
   }
 
+  // POST /terminal/message — OpenClaw agent interface
+  if (path === '/terminal/message' && req.method === 'POST') {
+    const body = await readBody(req);
+    const { message } = body;
+
+    if (!message || typeof message !== 'string') {
+      return sendJSON(res, { success: false, error: 'Message is required' }, 400);
+    }
+
+    if (message.length > 1000) {
+      return sendJSON(res, { success: false, error: 'Message too long (max 1000 chars)' }, 400);
+    }
+
+    try {
+      const response = await runOpenClaw(message);
+      return sendJSON(res, {
+        success: true,
+        response,
+        timestamp: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error('OpenClaw error:', err.message);
+      return sendJSON(res, { success: false, error: err.message }, 500);
+    }
+  }
+
   return null;
+}
+
+// Run OpenClaw agent command
+function runOpenClaw(message) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('/usr/bin/openclaw', [
+      'agent', '--local', '--agent', 'main', '--thinking', 'off', '--message', message
+    ], {
+      env: {
+        ...process.env,
+        ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+        PATH: process.env.PATH
+      }
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout.on('data', (data) => { stdout += data.toString(); });
+    proc.stderr.on('data', (data) => { stderr += data.toString(); });
+
+    proc.on('error', (err) => {
+      reject(new Error(`Failed to start OpenClaw: ${err.message}`));
+    });
+
+    proc.on('close', (code) => {
+      if (code === 0) {
+        resolve(stdout.trim());
+      } else {
+        reject(new Error(stderr || `OpenClaw exited with code ${code}`));
+      }
+    });
+
+    // Timeout after 90 seconds
+    setTimeout(() => {
+      proc.kill('SIGTERM');
+      reject(new Error('Request timeout (90s)'));
+    }, 90000);
+  });
 }
 
 // Create server
@@ -1459,7 +1674,7 @@ const server = createServer(async (req, res) => {
 
   // Check static routes
   if (routes[path]) {
-    return routes[path](req, res);
+    return await routes[path](req, res);
   }
 
   // Check dynamic routes

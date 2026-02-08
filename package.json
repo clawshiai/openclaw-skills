@@ -11,10 +11,14 @@
   },
   "dependencies": {
     "better-sqlite3": "^11.10.0",
+    "dotenv": "^17.2.4",
     "ethers": "^6.16.0",
     "moltbook": "^1.1.0"
   },
   "devDependencies": {
+    "@noble/curves": "^2.0.1",
+    "@noble/hashes": "^2.0.1",
+    "@noble/secp256k1": "^3.0.0",
     "solc": "^0.8.33"
   }
 }

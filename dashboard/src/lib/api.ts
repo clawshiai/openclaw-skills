@@ -199,6 +199,51 @@ export async function checkVerification(
   return res.json();
 }
 
+// Health status
+export interface ServiceStatus {
+  status: 'operational' | 'degraded' | 'down';
+  latency_ms?: number;
+  count?: number;
+  error?: string;
+}
+
+export interface HealthStatus {
+  status: 'operational' | 'degraded' | 'down';
+  uptime_seconds: number;
+  services: Record<string, ServiceStatus>;
+  timestamp: string;
+}
+
+export async function getHealthStatus(): Promise<HealthStatus> {
+  const res = await fetch(`${getApiBase()}/health`, {
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error('Failed to fetch health status');
+  const data = await res.json();
+  return data;
+}
+
+export interface HealthHistoryEntry {
+  date: string;
+  status: 'operational' | 'degraded' | 'down' | 'no_data';
+  latency_ms: number | null;
+}
+
+export interface HealthHistoryResponse {
+  days: number;
+  since: string;
+  services: Record<string, HealthHistoryEntry[]>;
+}
+
+export async function getHealthHistory(days = 90): Promise<HealthHistoryResponse> {
+  const res = await fetch(`${getApiBase()}/health/history?days=${days}`, {
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error('Failed to fetch health history');
+  const data = await res.json();
+  return data;
+}
+
 // Research types
 export interface MoltbookComment {
   id: string;
