@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 export class ClaudeModel {
-  constructor(apiKey, model = "claude-opus-4-6") {
+  constructor(apiKey, model = "claude-haiku-4-5-20251001") {
     this.client = new Anthropic({ apiKey });
     this.model = model;
     this.name = model;
@@ -12,7 +12,7 @@ export class ClaudeModel {
     try {
       res = await this.client.messages.create({
         model: this.model,
-        max_tokens: 1024,
+        max_tokens: 256,
         messages: [{ role: "user", content: prompt }],
       });
     } catch (err) {
