@@ -1890,11 +1890,11 @@ function runOpenClaw(message) {
       }
     });
 
-    // Timeout after 90 seconds
+    // Timeout after 180 seconds
     setTimeout(() => {
       proc.kill('SIGTERM');
-      reject(new Error('Request timeout (90s)'));
-    }, 90000);
+      reject(new Error('Request timeout (180s)'));
+    }, 180000);
   });
 }
 
