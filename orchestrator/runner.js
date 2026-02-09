@@ -1,6 +1,5 @@
 import { ClaudeModel } from "./models/claude.js";
 import * as moltbook from "./skills/moltbook.js";
-import * as neynar from "./skills/neynar.js";
 import * as sentimentStrategy from "./strategies/sentiment.js";
 import { ClawshiAPI } from "./clawshi-api.js";
 import { CLAWSHI_API } from "./config.js";
@@ -58,10 +57,6 @@ async function doResearch(skills, marketQuestion) {
     try {
       if (skill === "moltbook") {
         const data = await moltbook.researchTopic(keywords);
-        results.push(data);
-      } else if (skill === "neynar") {
-        const key = process.env.NEYNAR_API_KEY;
-        const data = await neynar.researchTopic(key, keywords);
         results.push(data);
       }
     } catch (err) {

@@ -8,7 +8,7 @@ export const agents = [
       provider: "anthropic",
       model: "claude-haiku-4-5-20251001",
     },
-    skills: ["moltbook", "neynar"],
+    skills: ["moltbook"],
     strategy: "sentiment",
     params: {
       confidence_threshold: 0.6,
