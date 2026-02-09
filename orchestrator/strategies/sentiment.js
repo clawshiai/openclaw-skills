@@ -1,42 +1,42 @@
 // Sentiment strategy: follow community consensus
 // If signals are strong in one direction, bet that way
-// Confidence scales with signal strength + research alignment
+// Confidence scales with signal strength + trend alignment
 
-export function decide(market, signals, trends, research) {
+export function decide(market, signal, trend, research) {
   const { yes_probability: yesProb } = market;
   let position = "SKIP";
   let confidence = 0;
   let reasoning = "";
 
-  // Use Clawshi signals if available
-  if (signals) {
-    const strength = signals.signal_strength || signals.strength;
+  // Use per-market signal
+  if (signal) {
+    const strength = signal.signal || signal.signal_strength;
     if (strength === "strong_yes" || strength === "lean_yes") {
       position = "YES";
       confidence = strength === "strong_yes" ? 0.85 : 0.65;
-      reasoning = `Clawshi signal: ${strength}`;
+      reasoning = `Signal: ${strength} (${signal.yes_probability}%)`;
     } else if (strength === "strong_no" || strength === "lean_no") {
       position = "NO";
       confidence = strength === "strong_no" ? 0.85 : 0.65;
-      reasoning = `Clawshi signal: ${strength}`;
+      reasoning = `Signal: ${strength} (${signal.no_probability}%)`;
     }
   }
 
-  // Use trend direction as secondary signal
-  if (trends) {
-    const dir = trends.direction || trends.trending;
+  // Use per-market trend as secondary
+  if (trend) {
+    const dir = trend.direction;
     if (dir === "trending_yes" && position !== "NO") {
       position = "YES";
       confidence = Math.max(confidence, 0.6);
-      reasoning += ` | Trend: ${dir}`;
+      reasoning += ` | Trend: ${dir} (delta +${trend.delta})`;
     } else if (dir === "trending_no" && position !== "YES") {
       position = "NO";
       confidence = Math.max(confidence, 0.6);
-      reasoning += ` | Trend: ${dir}`;
+      reasoning += ` | Trend: ${dir} (delta ${trend.delta})`;
     }
   }
 
-  // Fallback to probability if no signals
+  // Fallback to probability
   if (position === "SKIP" && yesProb != null) {
     if (yesProb > 70) {
       position = "YES";

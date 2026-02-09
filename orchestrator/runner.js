@@ -1,6 +1,8 @@
 import { ClaudeModel } from "./models/claude.js";
 import * as moltbook from "./skills/moltbook.js";
 import * as sentimentStrategy from "./strategies/sentiment.js";
+import * as contrarianStrategy from "./strategies/contrarian.js";
+import * as momentumStrategy from "./strategies/momentum.js";
 import { ClawshiAPI } from "./clawshi-api.js";
 import { CLAWSHI_API } from "./config.js";
 import { appendFileSync, mkdirSync } from "fs";
@@ -36,7 +38,8 @@ function createModel(config) {
 
 function getStrategy(name) {
   if (name === "sentiment") return sentimentStrategy;
-  // Future: contrarian, momentum
+  if (name === "contrarian") return contrarianStrategy;
+  if (name === "momentum") return momentumStrategy;
   throw new Error(`Unknown strategy: ${name}`);
 }
 
@@ -70,8 +73,14 @@ async function doResearch(skills, marketQuestion) {
 // ── Build LLM prompt ──
 
 function buildPrompt(agentName, strategy, market, signals, trends, research) {
+  const strategyDesc = {
+    sentiment: "follow community consensus, bet with the majority sentiment",
+    contrarian: "bet AGAINST the crowd — fade overconfidence, profit from mean reversion",
+    momentum: "follow the TREND direction — if momentum is shifting, ride the wave",
+  };
+
   return `You are ${agentName}, a prediction market trader on Clawshi.
-Your strategy: ${strategy} — follow community consensus, bet with the majority sentiment.
+Your strategy: ${strategy} — ${strategyDesc[strategy] || strategy}.
 
 MARKET:
   ID: ${market.id}
@@ -127,21 +136,30 @@ export async function runAgent(agentConfig, options = {}) {
       Array.isArray(myStakes) ? myStakes.map((s) => s.market_id) : []
     );
 
-    // Get Clawshi signals/trends once (not per-market)
-    const signals = await api.getSignals();
-    const trends = await api.getTrends();
+    // Get Clawshi signals/trends once, index by market_id
+    const signalsRaw = await api.getSignals();
+    const trendsRaw = await api.getTrends();
+    const signalsByMarket = {};
+    const trendsByMarket = {};
+    for (const s of (signalsRaw?.signals || signalsRaw || [])) {
+      if (s.market_id) signalsByMarket[s.market_id] = s;
+    }
+    for (const t of (trendsRaw?.trends || trendsRaw || [])) {
+      if (t.market_id) trendsByMarket[t.market_id] = t;
+    }
 
     // ── OPTIMIZATION 1: Rule-based pre-filter ──
-    // Only send markets to LLM if the cheap rule-based strategy sees potential
     const candidates = [];
     for (const market of markets) {
       if (stakedMarketIds.has(market.id)) {
         log(name, "SKIP", `Market #${market.id}: already staked`);
         continue;
       }
-      const ruleDecision = strategy.decide(market, signals, trends, "");
+      const sig = signalsByMarket[market.id] || null;
+      const trend = trendsByMarket[market.id] || null;
+      const ruleDecision = strategy.decide(market, sig, trend, "");
       if (ruleDecision.position !== "SKIP" && ruleDecision.confidence > 0) {
-        candidates.push({ market, ruleDecision });
+        candidates.push({ market, ruleDecision, sig, trend });
       } else {
         log(name, "FILTER", `Market #${market.id}: rule says SKIP — "${market.question.slice(0, 50)}..."`);
       }
@@ -155,15 +173,15 @@ export async function runAgent(agentConfig, options = {}) {
     log(name, "INFO", `Pre-filter: ${candidates.length}/${markets.length} passed rules, sending top ${top.length} to LLM`);
 
     // 2-5. For each candidate: RESEARCH → ANALYZE → DECIDE → EXECUTE
-    for (const { market, ruleDecision } of top) {
+    for (const { market, ruleDecision, sig, trend } of top) {
       log(name, "INFO", `Market #${market.id}: "${market.question}"`);
 
       // 2. RESEARCH
       log(name, "INFO", `  Researching via: ${skills.join(", ")}`);
       const research = await doResearch(skills, market.question);
 
-      // 3. ANALYZE — LLM decision
-      const prompt = buildPrompt(name, strategyName, market, signals, trends, research);
+      // 3. ANALYZE — LLM decision (pass per-market signals/trends)
+      const prompt = buildPrompt(name, strategyName, market, sig, trend, research);
       log(name, "INFO", "  Querying LLM...");
       const llmDecision = await model.analyze(prompt);
 
