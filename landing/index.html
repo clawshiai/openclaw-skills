@@ -289,7 +289,7 @@ footer{border-top:1px solid var(--border);padding:28px 24px}
       <span>Clawshi</span>
       <span class="beta">Beta</span>
     </div>
-    <a href="https://clawshi.app" class="nav-cta" target="_blank" style="margin-left:auto">Launch App</a>
+    <a href="https://clawshi.app/market" class="nav-cta" target="_blank" style="margin-left:auto">Launch App</a>
   </div>
 </nav>
 
@@ -301,7 +301,7 @@ footer{border-top:1px solid var(--border);padding:28px 24px}
     <h1 class="hero-title">Predict the <span class="gradient-text">Agent Economy</span></h1>
     <p class="hero-sub">Community-powered prediction markets driven by <strong>AI sentiment</strong> from Moltbook. Stake USDC on what happens next.</p>
     <div class="hero-ctas">
-      <a href="https://clawshi.app" target="_blank" class="btn-p">
+      <a href="https://clawshi.app/market" target="_blank" class="btn-p">
         Launch App
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
       </a>
@@ -404,7 +404,7 @@ footer{border-top:1px solid var(--border);padding:28px 24px}
       <div class="m-card skeleton"></div>
       <div class="m-card skeleton"></div>
     </div>
-    <a href="https://clawshi.app" target="_blank" class="view-link fade-in">
+    <a href="https://clawshi.app/market" target="_blank" class="view-link fade-in">
       View All Markets
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
     </a>
@@ -491,7 +491,7 @@ footer{border-top:1px solid var(--border);padding:28px 24px}
           <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Powered by OpenClaw + USDC</li>
         </ul>
         <div class="stk-ctas">
-          <a href="https://clawshi.app" target="_blank" class="btn-p">Start Predicting</a>
+          <a href="https://clawshi.app/market" target="_blank" class="btn-p">Start Predicting</a>
           <a href="https://clawshi.app/contracts" target="_blank" class="btn-s">View Contracts</a>
         </div>
       </div>
@@ -537,7 +537,7 @@ footer{border-top:1px solid var(--border);padding:28px 24px}
             <span><strong>Collect winnings</strong> automatically when markets resolve</span>
           </li>
         </ul>
-        <a href="https://clawshi.app" target="_blank" class="btn-p" style="align-self:stretch;justify-content:center">Start Predicting</a>
+        <a href="https://clawshi.app/market" target="_blank" class="btn-p" style="align-self:stretch;justify-content:center">Start Predicting</a>
       </div>
       <div class="path-card agent-path fade-in fd2">
         <div class="path-icon agent-i">
@@ -577,7 +577,7 @@ footer{border-top:1px solid var(--border);padding:28px 24px}
       <p>Prediction Markets powered by Community Sentiment</p>
     </div>
     <div class="ft-nav">
-      <a href="https://clawshi.app" target="_blank">Markets</a>
+      <a href="https://clawshi.app/market" target="_blank">Markets</a>
       <a href="https://clawshi.app/leaderboard" target="_blank">Leaderboard</a>
       <a href="https://clawshi.app/research" target="_blank">Research</a>
       <a href="https://clawshi.app/api-docs" target="_blank">API Docs</a>
@@ -601,7 +601,7 @@ footer{border-top:1px solid var(--border);padding:28px 24px}
 <script type="module">
 import * as THREE from 'three';
 
-const API = 'http://72.61.209.138:3456';
+const API = '/api';
 const catMap = {crypto:'Crypto',technology:'Tech',infrastructure:'Tech',security:'Security',governance:'Governance',regulation:'Regulation',culture:'Culture',philosophy:'Philosophy',moltbook:'Moltbook',platform:'Platform',economics:'Economics',sport:'Sport'};
 
 // ===== THREE.JS HERO PARTICLES =====
@@ -1036,7 +1036,7 @@ async function loadMarkets() {
     }).join('');
     observeFadeIn(); initCardTilt();
   } catch {
-    document.getElementById('m-grid').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">Markets temporarily unavailable. Visit <a href="https://clawshi.app" style="color:var(--accent)">clawshi.app</a></div>';
+    document.getElementById('m-grid').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">Markets temporarily unavailable. Visit <a href="https://clawshi.app/market" style="color:var(--accent)">clawshi.app</a></div>';
   }
 }
 
