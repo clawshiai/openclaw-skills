@@ -1,8 +1,8 @@
 import 'dotenv/config';
 import { createServer } from 'http';
 import { randomBytes } from 'crypto';
-import { readFileSync } from 'fs';
-import { spawn } from 'child_process';
+import { readFileSync, existsSync } from 'fs';
+import { spawn, execSync } from 'child_process';
 import Database from 'better-sqlite3';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -578,6 +578,20 @@ const routes = {
       since: sinceHour,
       services: history
     });
+  },
+
+  // GET /analytics/terminal — terminal access analytics from nginx logs
+  '/analytics/terminal': (req, res) => {
+    try {
+      const statsFile = join(__dirname, 'data/terminal_analytics.json');
+      if (existsSync(statsFile)) {
+        const data = JSON.parse(readFileSync(statsFile, 'utf8'));
+        return sendJSON(res, { success: true, ...data });
+      }
+      return sendJSON(res, { success: false, error: 'Analytics not yet generated. Run: node scripts/terminal-analytics.js' }, 404);
+    } catch (e) {
+      return sendJSON(res, { success: false, error: 'Failed to load analytics' }, 500);
+    }
   },
 
   // GET /stats - Database statistics
@@ -1837,16 +1851,60 @@ async function handleAgentRoutes(path, req, res) {
       return sendJSON(res, { success: false, error: 'Message too long (max 1000 chars)' }, 400);
     }
 
+    // Detect client disconnect early
+    let clientDisconnected = false;
+    req.on('close', () => { clientDisconnected = true; });
+
     try {
       const response = await runOpenClaw(message);
+
+      // Don't send if client already left (prevents 499-like noise)
+      if (clientDisconnected) {
+        console.warn(`[terminal] Client disconnected before response for: "${message.slice(0, 50)}"`);
+        return;
+      }
+
+      // Check if the AI response indicates an API error
+      if (response.includes('credit balance is too low') || response.includes('API key')) {
+        console.error('[terminal] OpenClaw API key/credits issue:', response.slice(0, 120));
+        return sendJSON(res, {
+          success: false,
+          error: 'Clawshi AI is temporarily unavailable due to service limits. Please try again later.',
+          code: 'API_CREDITS_EXHAUSTED'
+        }, 503);
+      }
+
       return sendJSON(res, {
         success: true,
         response,
         timestamp: new Date().toISOString()
       });
     } catch (err) {
-      console.error('OpenClaw error:', err.message);
-      return sendJSON(res, { success: false, error: 'Clawshi AI is temporarily unavailable. Please try again in a moment.' }, 500);
+      console.error('[terminal] OpenClaw error:', err.message);
+
+      if (clientDisconnected) return;
+
+      if (err.message.includes('timeout')) {
+        return sendJSON(res, {
+          success: false,
+          error: 'Request timed out. The AI is taking longer than expected. Please try a simpler question.',
+          code: 'TIMEOUT'
+        }, 504);
+      }
+
+      if (err.message.includes('Failed to start')) {
+        return sendJSON(res, {
+          success: false,
+          error: 'Clawshi AI agent is not available. Please try again later.',
+          code: 'AGENT_UNAVAILABLE'
+        }, 503);
+      }
+
+      return sendJSON(res, {
+        success: false,
+        error: 'Clawshi AI encountered an error. Please try again.',
+        code: 'INTERNAL_ERROR'
+      }, 500);
     }
   }
 
@@ -1856,6 +1914,9 @@ async function handleAgentRoutes(path, req, res) {
 // Run OpenClaw agent command
 function runOpenClaw(message) {
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const settle = (fn) => (...args) => { if (!settled) { settled = true; fn(...args); } };
+
     const proc = spawn('/usr/bin/openclaw', [
       'agent', '--local', '--agent', 'main', '--thinking', 'off', '--json', '--message', message
     ], {
@@ -1872,15 +1933,14 @@ function runOpenClaw(message) {
     proc.stdout.on('data', (data) => { stdout += data.toString(); });
     proc.stderr.on('data', (data) => { stderr += data.toString(); });
 
-    proc.on('error', (err) => {
+    proc.on('error', settle((err) => {
       reject(new Error(`Failed to start OpenClaw: ${err.message}`));
-    });
+    }));
 
-    proc.on('close', (code) => {
+    proc.on('close', settle((code) => {
       if (code === 0) {
         try {
           const result = JSON.parse(stdout.trim());
-          // Combine ALL payload texts (agent returns intro in [0], data in [1+])
           const text = (result.payloads || [])
             .map(p => p.text).filter(Boolean).join('\n\n') || stdout.trim();
           resolve(text);
@@ -1888,15 +1948,25 @@ function runOpenClaw(message) {
           resolve(stdout.trim());
         }
       } else {
-        reject(new Error(stderr || `OpenClaw exited with code ${code}`));
+        // Include both stderr and stdout for better debugging
+        const errMsg = stderr || stdout.slice(0, 500) || `OpenClaw exited with code ${code}`;
+        reject(new Error(errMsg));
       }
-    });
+    }));
 
-    // Timeout after 180 seconds
-    setTimeout(() => {
-      proc.kill('SIGTERM');
-      reject(new Error('Request timeout (180s)'));
-    }, 180000);
+    // Timeout after 120 seconds (nginx proxy_read_timeout is 200s, keep under it)
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        proc.kill('SIGTERM');
+        // Give it 3s to clean up, then force kill
+        setTimeout(() => { try { proc.kill('SIGKILL'); } catch {} }, 3000);
+        reject(new Error('Request timeout (120s)'));
+      }
+    }, 120000);
+
+    // Clear timer on normal exit
+    proc.on('close', () => clearTimeout(timer));
   });
 }
 
