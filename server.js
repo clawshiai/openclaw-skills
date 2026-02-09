@@ -1846,7 +1846,7 @@ async function handleAgentRoutes(path, req, res) {
       });
     } catch (err) {
       console.error('OpenClaw error:', err.message);
-      return sendJSON(res, { success: false, error: err.message }, 500);
+      return sendJSON(res, { success: false, error: 'Clawshi AI is temporarily unavailable. Please try again in a moment.' }, 500);
     }
   }
 
@@ -1880,7 +1880,9 @@ function runOpenClaw(message) {
       if (code === 0) {
         try {
           const result = JSON.parse(stdout.trim());
-          const text = result.payloads?.[0]?.text || stdout.trim();
+          // Combine ALL payload texts (agent returns intro in [0], data in [1+])
+          const text = (result.payloads || [])
+            .map(p => p.text).filter(Boolean).join('\n\n') || stdout.trim();
           resolve(text);
         } catch {
           resolve(stdout.trim());

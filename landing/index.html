@@ -804,8 +804,10 @@ function initTerminal() {
   }
 
   function fmtMsg(raw) {
-    // Sanitize HTML entities first
-    let s = raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    // Strip emojis and replace IP URLs before processing
+    let s = raw.replace(/[\u{1F300}-\u{1FAF8}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}\u{20E3}\u{E0020}-\u{E007F}\u{1F900}-\u{1F9FF}]/gu, '').replace(/http:\/\/72\.61\.209\.138:3456/g, 'https://clawshi.app/api');
+    // Sanitize HTML entities
+    s = s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     // Code blocks ```...```
     s = s.replace(/```[\s\S]*?```/g, m => {
       const code = m.slice(3,-3).replace(/^\w*\n/,'');
