@@ -1,0 +1,223 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────
+# Anthropic Terminal Usage Report
+# Run: ./scripts/usage
+# ─────────────────────────────────────────────────
+set -euo pipefail
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+DATA="$DIR/../data/terminal_analytics.json"
+[[ ! -f "$DATA" ]] && echo "No data: $DATA" && exit 1
+
+# Colors
+R=$'\033[91m'; G=$'\033[92m'; Y=$'\033[93m'; C=$'\033[96m'
+W=$'\033[97m'; D=$'\033[90m'; B=$'\033[1m'; N=$'\033[0m'
+
+j() { jq -r "$1" "$DATA"; }
+
+# ── Load all data upfront ──
+REQS=$(j '.summary.total_requests')
+USERS=$(j '.summary.unique_users')
+NCOUNTRIES=$(j '.countries | length')
+AI_TOTAL=$(j '.api_messages.total')
+AI_OK=$(j '.api_messages.success')
+AI_FAIL=$(j '.api_messages.failed')
+AI_TIMEOUT=$(j '.api_messages.timeout')
+AI_RATE=$(j '.api_messages.success_rate')
+BAL=$(j '.balance.amount // -0.42' | sed 's/-//')
+MAX_REQ=$(j '[.daily[].requests] | max')
+PEAK_H=$(j '.summary.peak_hour_utc')
+PEAK_W=$(j '.summary.peak_hour_wib')
+PEAK_V=$(j ".hourly[$PEAK_H].requests")
+
+# Pre-extract daily arrays
+readarray -t D_DATES < <(j '.daily[].date')
+readarray -t D_REQS  < <(j '.daily[].requests')
+readarray -t D_ERRS  < <(j '.daily[].errors')
+
+# Pre-extract countries
+readarray -t C_NAME  < <(j '.countries[:15][].country')
+readarray -t C_CODE  < <(j '.countries[:15][].code')
+readarray -t C_COUNT < <(j '.countries[:15][].count')
+readarray -t C_PCT   < <(j '.countries[:15][].percentage')
+
+# Pre-extract hourly
+readarray -t H_VALS < <(j '.hourly[].requests')
+
+# ── Helpers ──
+mkbar() {
+  local val=$1 max=$2 w=${3:-25}
+  local filled=$(( val * w / (max > 0 ? max : 1) ))
+  local empty=$(( w - filled ))
+  local b="" e=""
+  for ((i=0; i<filled; i++)); do b+="█"; done
+  for ((i=0; i<empty; i++)); do e+="░"; done
+  echo -n "${G}${b}${D}${e}${N}"
+}
+
+spark() {
+  local chars=(▁ ▂ ▃ ▄ ▅ ▆ ▇ █)
+  local vals=("$@") mn=999999 mx=0
+  for v in "${vals[@]}"; do (( v < mn )) && mn=$v; (( v > mx )) && mx=$v; done
+  local rng=$(( mx - mn > 0 ? mx - mn : 1 ))
+  for v in "${vals[@]}"; do
+    local idx=$(( (v - mn) * 7 / rng )); (( idx > 7 )) && idx=7
+    printf "%s" "${chars[$idx]}"
+  done
+}
+
+flag() {
+  local c="$1"
+  local a=$(printf '%d' "'${c:0:1}") b=$(printf '%d' "'${c:1:1}")
+  printf "\U$(printf '%x' $((0x1F1E6 + a - 65)))\U$(printf '%x' $((0x1F1E6 + b - 65)))"
+}
+
+LN="${D}────────────────────────────────────────────────────────────────────────${N}"
+
+# ── Balance simulation ──
+P1_REQS=0; P2_REQS=0
+for i in "${!D_DATES[@]}"; do
+  d="${D_DATES[$i]}"
+  if [[ "$d" > "2026-02-03" ]] && [[ "$d" < "2026-02-08" ]]; then P1_REQS=$((P1_REQS + D_REQS[i])); fi
+  if [[ "$d" > "2026-02-07" ]]; then P2_REQS=$((P2_REQS + D_REQS[i])); fi
+done
+
+declare -a BALS=() BEVT=()
+bal=0
+for i in "${!D_DATES[@]}"; do
+  d="${D_DATES[$i]}"; r=${D_REQS[$i]}
+  evt=""
+  if [[ "$d" < "2026-02-04" ]]; then
+    bal=-1  # sentinel for "no balance"
+  elif [[ "$d" == "2026-02-04" ]]; then
+    bal=$(( 1000 - r * 1000 / P1_REQS ))
+    evt="topup1"
+  elif [[ "$d" < "2026-02-07" ]]; then
+    bal=$(( bal - r * 1000 / P1_REQS ))
+  elif [[ "$d" == "2026-02-07" ]]; then
+    bal=0; evt="depleted"
+  elif [[ "$d" == "2026-02-08" ]]; then
+    bal=$(( 1300 - r * 1300 / P2_REQS ))
+    evt="topup2"
+  elif [[ "$d" == "2026-02-09" ]]; then
+    bal=-1  # -$0.42 final
+  else
+    bal=$(( bal - r * 1300 / P2_REQS ))
+  fi
+  BALS+=("$bal"); BEVT+=("$evt")
+done
+
+# ═══════════════ RENDER ═══════════════
+
+echo
+echo "  $LN"
+echo "  ${B}${W}  ⟁  Anthropic Terminal Usage Report${N}     ${G}Model: Claude Opus 4.6${N}"
+echo "  $LN"
+echo
+echo "  ${W}${B}${REQS}${N} requests   ${W}${B}${USERS}${N} users   ${W}${B}${NCOUNTRIES}${N} countries   ${W}${B}${AI_TOTAL}${N} AI messages   ${G}${B}${AI_RATE}%${N} success   ${R}${B}-US\$${BAL}${N} ${R}UNPAID${N}"
+echo
+
+# ── Timeline ──
+echo "  ${B}${C}CREDIT USAGE TIMELINE${N}  ${D}Jan 31 — Feb 9, 2026${N}"
+echo "  $LN"
+
+for i in "${!D_DATES[@]}"; do
+  short="${D_DATES[$i]:5}"
+  r=${D_REQS[$i]}
+  e=${D_ERRS[$i]}
+  bv=${BALS[$i]}
+  ev=${BEVT[$i]}
+
+  # Bar
+  bar_str=$(mkbar "$r" "$MAX_REQ" 25)
+
+  # Error
+  if (( e > 0 )); then
+    err_str=" ${R}✖ ${e} err${N}"
+  else
+    err_str=""
+  fi
+
+  # Balance display
+  if (( bv == -1 )); then
+    if [[ "${D_DATES[$i]}" < "2026-02-04" ]]; then
+      bal_str="${D}bal        —${N}"
+    else
+      bal_str="${R}bal  -\$0.42${N}"
+    fi
+  elif (( bv == 0 )); then
+    bal_str="${R}bal      \$0${N}"
+  else
+    bal_str="${Y}bal   \$$(printf '%d' $bv)${N}"
+  fi
+
+  # Event annotation
+  evt_str=""
+  case "$ev" in
+    topup1)   evt_str="  ${G}▲ +\$1,000 topped up${N}" ;;
+    topup2)   evt_str="  ${G}▲ +\$1,300 topped up${N}" ;;
+    depleted) evt_str="  ${R}▼ Credits depleted — 48 errors!${N}" ;;
+  esac
+
+  printf "  ${D}%s${N}  %s ${W}%4d${N}%-17s %s%s\\n" \
+    "$short" "$bar_str" "$r" "$err_str" "$bal_str" "$evt_str"
+done
+
+echo "  $LN"
+echo -n "  ${D}traffic:${N} ${G}"
+spark "${D_REQS[@]}"
+echo "${N}  ${D}peak: Feb 8 (${MAX_REQ} reqs)${N}"
+echo
+
+# ── Countries ──
+echo "  ${B}${C}TRAFFIC BY COUNTRY${N}  ${D}${NCOUNTRIES} total${N}"
+echo "  $LN"
+
+MAX_C=${C_COUNT[0]}
+for i in "${!C_NAME[@]}"; do
+  fl=$(flag "${C_CODE[$i]}" 2>/dev/null || echo "${C_CODE[$i]}")
+  nm=$(printf "%-18.18s" "${C_NAME[$i]}")
+  bar_str=$(mkbar "${C_COUNT[$i]}" "$MAX_C" 22)
+  printf "  ${D}%2d.${N} %s ${W}%s${N} %s ${W}%4d${N} ${D}(%s%%)${N}\\n" \
+    $((i+1)) "$fl" "$nm" "$bar_str" "${C_COUNT[$i]}" "${C_PCT[$i]}"
+done
+
+echo "  $LN"
+echo
+
+# ── Credit Events ──
+echo "  ${B}${C}CREDIT EVENTS${N}"
+echo "  $LN"
+echo "  ${D}Feb 4${N}  ${G}▲ +\$1,000 topped up${N}          ${D}Started serving AI terminal${N}"
+echo "  ${D}Feb 7${N}  ${R}▼ Credits DEPLETED${N}            ${R}${B}48 errors — 502/499/500${N}"
+echo "  ${D}     ${N}  ${D}\$1,000 burned in ~72 hours${N}   ${Y}Users kept hammering the endpoint${N}"
+echo "  ${D}Feb 8${N}  ${G}▲ +\$1,300 topped up${N}          ${D}Emergency reload${N}"
+echo "  ${D}Feb 9${N}  ${R}● Balance: -\$0.42${N}            ${R}Still burning. Still unpaid.${N}"
+echo "  $LN"
+echo
+
+# ── AI Health ──
+echo "  ${B}${C}AI TERMINAL HEALTH${N}"
+echo "  $LN"
+echo "  Messages: ${W}${B}${AI_TOTAL}${N}  Success: ${G}${AI_OK}${N}  Failed: ${R}${AI_FAIL}${N}  Timeout: ${Y}${AI_TIMEOUT}${N}"
+rate_int=${AI_RATE%.*}
+bar_str=$(mkbar "$rate_int" 100 20)
+echo "  Rate:     ${bar_str} ${G}${AI_RATE}%${N}"
+echo "  $LN"
+echo
+
+# ── Hourly ──
+echo "  ${B}${C}HOURLY TRAFFIC (UTC)${N}"
+echo "  $LN"
+echo "  ${D}00  03  06  09  12  15  18  21  24${N}"
+echo -n "  ${G}"
+spark "${H_VALS[@]}"
+echo "${N}"
+echo "  ${D}Peak: ${PEAK_H}:00 UTC (${PEAK_W}:00 WIB) — ${PEAK_V} requests${N}"
+echo "  $LN"
+echo
+
+# ── Footer ──
+echo "  ${D}clawshi.app/terminal${N}                          ${R}${B}-US\$0.42 UNPAID${N}"
+echo "  ${D}Powered by Claude Opus 4.6 · ${REQS} requests burned through \$2,300 in 6 days${N}"
+echo

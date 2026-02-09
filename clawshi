@@ -1,0 +1,262 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────
+#  clawshi CLI — terminal analytics tool
+#  Usage: ./clawshi --usage --opus
+# ─────────────────────────────────────────
+set -euo pipefail
+
+DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+DATA="$DIR/data/terminal_analytics.json"
+VERSION="1.0.0"
+
+CMD=""
+MODEL="Claude Opus 4.6"
+
+for arg in "$@"; do
+  case "$arg" in
+    --usage)          CMD="usage" ;;
+    --arch)           CMD="arch" ;;
+    --model=*)        MODEL="${arg#*=}" ;;
+    --opus|--opus=*)  MODEL="Claude Opus 4.6" ;;
+    --sonnet)         MODEL="Claude Sonnet 4.5" ;;
+    --version|-v)     echo "clawshi v${VERSION}"; exit 0 ;;
+    --help|-h)        CMD="help" ;;
+    *)                echo "Unknown: $arg"; exit 1 ;;
+  esac
+done
+
+[[ -z "$CMD" ]] && CMD="help"
+
+# Colors
+R=$'\033[91m'; G=$'\033[92m'; Y=$'\033[93m'; C=$'\033[96m'
+W=$'\033[97m'; D=$'\033[90m'; B=$'\033[1m'; N=$'\033[0m'
+
+if [[ "$CMD" == "help" ]]; then
+  cat <<EOF
+
+  ${B}${W}clawshi${N} ${D}v${VERSION}${N}
+
+  ${W}COMMANDS${N}
+    ./clawshi --usage              ${D}Full usage report${N}
+    ./clawshi --usage --opus       ${D}Tag model Opus 4.6${N}
+    ./clawshi --arch               ${D}Agent Arena architecture${N}
+    ./clawshi --version            ${D}Version${N}
+
+EOF
+  exit 0
+fi
+
+if [[ "$CMD" == "usage" ]]; then
+
+  [[ ! -f "$DATA" ]] && echo "${R}error: $DATA not found${N}" && exit 1
+
+  # ── Loading animation ──
+  _spin() {
+    local s=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+    local msg="$1"
+    local i=0
+    while true; do
+      printf "\r  ${G}${s[$((i % ${#s[@]}))]}${N} ${D}%s${N}" "$msg"
+      sleep 0.08
+      ((i++))
+    done
+  }
+
+  _load() {
+    local msg="$1" dur="$2"
+    _spin "$msg" &
+    local pid=$!
+    sleep "$dur"
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    printf "\r  ${G}✓${N} ${D}%s${N}\033[K\n" "$msg"
+  }
+
+  echo
+  _load "connecting to clawshi.app" 0.8
+  _load "fetching terminal analytics" 1.2
+  _load "parsing $(basename "$DATA")" 0.6
+  _load "rendering report" 0.4
+  sleep 0.3
+
+  j() { jq -r "$1" "$DATA"; }
+
+  REQS=$(j '.summary.total_requests')
+  USERS=$(j '.summary.unique_users')
+  NC=$(j '.countries | length')
+  AI_T=$(j '.api_messages.total')
+  AI_OK=$(j '.api_messages.success')
+  AI_F=$(j '.api_messages.failed')
+  AI_TO=$(j '.api_messages.timeout')
+  AI_R=$(j '.api_messages.success_rate')
+  BAL=$(j '.balance.amount // -0.42' | sed 's/-//')
+  MX=$(j '[.daily[].requests] | max')
+  PH=$(j '.summary.peak_hour_utc')
+  PW=$(j '.summary.peak_hour_wib')
+  PV=$(j ".hourly[$PH].requests")
+
+  readarray -t DD < <(j '.daily[].date')
+  readarray -t DR < <(j '.daily[].requests')
+  readarray -t DE < <(j '.daily[].errors')
+  readarray -t CN < <(j '.countries[:15][].country')
+  readarray -t CC < <(j '.countries[:15][].code')
+  readarray -t CV < <(j '.countries[:15][].count')
+  readarray -t CP < <(j '.countries[:15][].percentage')
+  readarray -t HV < <(j '.hourly[].requests')
+
+  mkbar() {
+    local v=$1 m=$2 w=${3:-25} f=$(( $1 * ${3:-25} / ($2 > 0 ? $2 : 1) )) b="" e=""
+    for ((i=0; i<f; i++)); do b+="█"; done
+    for ((i=f; i<w; i++)); do e+="░"; done
+    echo -n "${G}${b}${D}${e}${N}"
+  }
+
+  spark() {
+    local c=(▁ ▂ ▃ ▄ ▅ ▆ ▇ █) mn=999999 mx=0
+    for v in "$@"; do (( v<mn )) && mn=$v; (( v>mx )) && mx=$v; done
+    local r=$(( mx-mn>0 ? mx-mn : 1 ))
+    for v in "$@"; do local i=$(( (v-mn)*7/r )); (( i>7 )) && i=7; printf "%s" "${c[$i]}"; done
+  }
+
+  fl() {
+    local a=$(printf '%d' "'${1:0:1}") b=$(printf '%d' "'${1:1:1}")
+    printf "\U$(printf '%x' $((0x1F1E6+a-65)))\U$(printf '%x' $((0x1F1E6+b-65)))"
+  }
+
+  LN="${D}────────────────────────────────────────────────────────────────────────${N}"
+
+  # Balance simulation
+  P1=0; P2=0
+  for i in "${!DD[@]}"; do
+    [[ "${DD[$i]}" > "2026-02-03" ]] && [[ "${DD[$i]}" < "2026-02-08" ]] && P1=$((P1+DR[i]))
+    [[ "${DD[$i]}" > "2026-02-07" ]] && P2=$((P2+DR[i]))
+  done
+
+  BV=(); BE=(); bl=0
+  for i in "${!DD[@]}"; do
+    d="${DD[$i]}"; r=${DR[$i]}; e=""
+    if   [[ "$d" < "2026-02-04" ]]; then bl=-1
+    elif [[ "$d" == "2026-02-04" ]]; then bl=$((1000-r*1000/P1)); e="topup1"
+    elif [[ "$d" < "2026-02-07" ]]; then bl=$((bl-r*1000/P1))
+    elif [[ "$d" == "2026-02-07" ]]; then bl=0; e="depleted"
+    elif [[ "$d" == "2026-02-08" ]]; then bl=$((1300-r*1300/P2)); e="topup2"
+    elif [[ "$d" == "2026-02-09" ]]; then bl=-2
+    else bl=$((bl-r*1300/P2)); fi
+    BV+=("$bl"); BE+=("$e")
+  done
+
+  # ═══════════════════ OUTPUT ═══════════════════
+
+  echo
+  echo "  $LN"
+  echo "  ${B}${W}  ⟁  Anthropic Terminal Usage Report${N}     ${G}${B}${MODEL}${N}"
+  echo "  $LN"
+  echo
+  printf "  ${W}${B}%s${N} ${D}requests${N}   " "$REQS"
+  printf "${W}${B}%s${N} ${D}users${N}   " "$USERS"
+  printf "${W}${B}%s${N} ${D}countries${N}   " "$NC"
+  printf "${G}${B}%s%%${N} ${D}ok${N}   " "$AI_R"
+  printf "${R}${B}Balance: -\$%s${N} ${R}UNPAID${N}\n" "$BAL"
+  echo
+
+  # ── Daily Traffic ──
+  echo "  ${B}${C}DAILY TRAFFIC${N}  ${D}Jan 31 — Feb 9, 2026${N}"
+  echo "  $LN"
+
+  for i in "${!DD[@]}"; do
+    s="${DD[$i]:5}"; r=${DR[$i]}; e=${DE[$i]}; bv=${BV[$i]}; ev=${BE[$i]}
+
+    bar=$(mkbar "$r" "$MX" 22)
+
+    # Errors
+    if (( e > 0 )); then
+      ef=$(printf "${R}%3d err${N}" "$e")
+    else
+      ef="       "
+    fi
+
+    # Balance
+    if (( bv == -1 )); then
+      bs="${D}     —${N}"
+    elif (( bv == -2 )); then
+      bs="${R}-\$0.42${N}"
+    elif (( bv == 0 )); then
+      bs="${R}    \$0${N}"
+    else
+      bs=$(printf "${Y} \$%4d${N}" "$bv")
+    fi
+
+    # Events
+    es=""
+    case "$ev" in
+      topup1)   es="  ${G}+\$1,000 topped up${N}" ;;
+      topup2)   es="  ${G}+\$1,300 topped up${N}" ;;
+      depleted) es="  ${R}DEPLETED — 48 errors${N}" ;;
+    esac
+
+    printf "  ${D}%s${N}  %s ${W}%4d${N}  %s  %s%s\n" \
+      "$s" "$bar" "$r" "$ef" "$bs" "$es"
+  done
+
+  echo "  $LN"
+  echo -n "  ${D}traffic${N} ${G}"
+  spark "${DR[@]}"
+  echo "${N}  ${D}peak: Feb 8 (${MX} reqs)${N}"
+  echo
+
+  # ── Countries ──
+  echo "  ${B}${C}TRAFFIC BY COUNTRY${N}  ${D}${NC} total${N}"
+  echo "  $LN"
+
+  MC=${CV[0]}
+  for i in "${!CN[@]}"; do
+    f=$(fl "${CC[$i]}" 2>/dev/null || echo "${CC[$i]}")
+    n=$(printf "%-18.18s" "${CN[$i]}")
+    bar=$(mkbar "${CV[$i]}" "$MC" 20)
+    printf "  ${D}%2d.${N} %s ${W}%s${N} %s ${W}%4d${N} ${D}(%s%%)${N}\n" \
+      $((i+1)) "$f" "$n" "$bar" "${CV[$i]}" "${CP[$i]}"
+  done
+
+  echo "  $LN"
+  echo
+
+  # ── Credit Events ──
+  echo "  ${B}${C}CREDIT EVENTS${N}"
+  echo "  $LN"
+  echo "  ${D}Feb 4${N}  ${G}+\$1,000 topped up${N}          ${D}Started serving AI terminal${N}"
+  echo "  ${D}Feb 7${N}  ${R}Credits DEPLETED${N}             ${R}${B}48 errors — 502/499/500${N}"
+  echo "  ${D}     ${N}  ${D}\$1,000 burned in ~72 hours${N}   ${Y}Users hammering the endpoint${N}"
+  echo "  ${D}Feb 8${N}  ${G}+\$1,300 topped up${N}          ${D}Emergency reload${N}"
+  echo "  ${D}Feb 9${N}  ${R}-\$0.42 balance${N}              ${R}Still burning. Still unpaid.${N}"
+  echo "  $LN"
+  echo
+
+  # ── API Health ──
+  echo "  ${B}${C}API HEALTH${N}"
+  echo "  $LN"
+  printf "  ${D}messages${N} ${W}${B}%s${N}   " "$AI_T"
+  printf "${D}success${N} ${G}%s${N}   " "$AI_OK"
+  printf "${D}failed${N} ${R}%s${N}   " "$AI_F"
+  printf "${D}timeout${N} ${Y}%s${N}\n" "$AI_TO"
+  ri=${AI_R%.*}
+  rb=$(mkbar "$ri" 100 20)
+  echo "  ${D}rate${N}     ${rb} ${G}${AI_R}%${N}"
+  echo "  $LN"
+  echo
+
+  # ── Hourly ──
+  echo "  ${B}${C}HOURLY TRAFFIC${N} ${D}(UTC)${N}"
+  echo "  $LN"
+  echo "  ${D}00  03  06  09  12  15  18  21${N}"
+  echo -n "  ${G}"
+  spark "${HV[@]}"
+  echo "${N}"
+  echo "  ${D}peak ${PH}:00 UTC (${PW}:00 WIB) — ${PV} requests${N}"
+  echo "  $LN"
+  echo
+
+  # ── Footer ──
+  echo "  ${D}clawshi.app/terminal${N}                          ${R}${B}-US\$${BAL} UNPAID${N}"
+  echo "  ${D}Powered by ${MODEL} · ${REQS} requests burned through \$2,300 in 6 days${N}"
+  echo
+fi
