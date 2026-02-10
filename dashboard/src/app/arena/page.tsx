@@ -225,9 +225,11 @@ export default function ArenaPage() {
   const [expandedRoundIdx, setExpandedRoundIdx] = useState<number | null>(null);
   const [countdownSec, setCountdownSec] = useState<number | null>(null);
   const [countdownTotal, setCountdownTotal] = useState<number>(120);
+  const [loadingNextRound, setLoadingNextRound] = useState(false);
   const countdownActive = useRef(false);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pricePollerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const loadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /** One-time REST fetch for cold data (history, leaderboard) */
   const fetchHistory = useCallback(async () => {
@@ -315,6 +317,8 @@ export default function ArenaPage() {
         setLive(prev => ({ ...prev, round: d.round, total: d.total, phase1: undefined, phase2: undefined, majority: undefined, votes: undefined, countdown: undefined, result: undefined, scores: undefined, scoreboard: undefined, status: 'started' }));
         stopTicker();
         setCountdownSec(null);
+        setLoadingNextRound(false);
+        if (loadingTimerRef.current) { clearTimeout(loadingTimerRef.current); loadingTimerRef.current = null; }
       } catch {}
     });
 
@@ -379,10 +383,17 @@ export default function ArenaPage() {
         setLive(prev => ({ ...prev, scores: d.scores, scoreboard: d.scoreboard }));
         // Refresh history from REST (new round completed)
         fetchHistory();
+        // After 3s showing result, transition to "loading next round"
+        if (loadingTimerRef.current) clearTimeout(loadingTimerRef.current);
+        loadingTimerRef.current = setTimeout(() => setLoadingNextRound(true), 3000);
       } catch {}
     });
 
-    return () => { es.close(); stopTicker(); };
+    return () => {
+      es.close();
+      stopTicker();
+      if (loadingTimerRef.current) clearTimeout(loadingTimerRef.current);
+    };
 
     function startTicker() {
       if (countdownActive.current) return;
@@ -527,13 +538,55 @@ export default function ArenaPage() {
         {/* ═══ Battle Status ═══ */}
         {isLive && (
           <div className={`rounded-xl p-4 sm:p-5 mb-5 transition-all duration-300 border ${
-            live.result
+            live.result && !loadingNextRound
               ? live.result.actual === 'UP'
                 ? 'border-green-500/40 bg-green-600/10'
                 : 'border-red-400/40 bg-red-600/10'
               : 'border-border bg-surface'
           }`}>
-            {live.result ? (
+            {loadingNextRound ? (
+              /* ── Loading Next Round ── */
+              <div className="space-y-3">
+                {/* Top: 2 columns */}
+                <div className="flex items-center justify-between gap-4">
+                  {/* Left: BTC price */}
+                  <div className="flex items-center gap-3">
+                    <BitcoinLogo size={28} />
+                    <div>
+                      <div className="text-xl sm:text-2xl font-bold font-heading tabular-nums">
+                        ${markPrice.toLocaleString()}
+                      </div>
+                      {live.result && (
+                        <span className={`text-sm font-semibold ${live.result.change >= 0 ? 'text-green-500' : 'text-red-400'}`}>
+                          {live.result.change >= 0 ? '+' : ''}${live.result.change.toFixed(2)} ({live.result.changePct >= 0 ? '+' : ''}{live.result.changePct.toFixed(4)}%)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {/* Right: Done + Loading */}
+                  <div className="flex items-center gap-3">
+                    <span className="text-green-500 font-heading font-bold text-lg">✓ DONE</span>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <div className="w-4 h-4 border-2 border-teal-400 border-t-transparent rounded-full animate-spin" />
+                      <span className="text-sm font-medium">Next round...</span>
+                    </div>
+                  </div>
+                </div>
+                {/* Bottom: Agents waiting */}
+                <div className="flex items-center justify-center gap-4 sm:gap-6 pt-2 border-t border-white/10">
+                  {AGENTS.map(name => {
+                    const color = AGENT_COLORS[name];
+                    return (
+                      <div key={name} className="flex items-center gap-1.5 text-sm opacity-60">
+                        {AGENT_ICONS[name]}
+                        <span className="font-medium" style={{ color }}>{name}</span>
+                        <span className="text-muted-foreground animate-pulse">...</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : live.result ? (
               /* ── Result ── */
               <div className="flex flex-col sm:flex-row items-center gap-4">
                 <div className="flex items-center gap-3">
