@@ -814,7 +814,8 @@ export default function ArenaPage() {
 
                     {/* Virtual Balance */}
                     <div className="mb-4">
-                      <div className="text-3xl font-heading font-bold text-foreground">
+                      <div className="flex items-center gap-2 text-3xl font-heading font-bold text-foreground">
+                        <BitcoinLogo size={24} />
                         ${balance.toFixed(0)}
                       </div>
                       <div className={`text-sm font-semibold ${pnlTotal >= 0 ? 'text-green-500' : 'text-red-400'}`}>
@@ -1132,9 +1133,10 @@ export default function ArenaPage() {
                           className="flex items-center gap-3 py-2 px-2 w-full text-left text-sm text-muted-foreground hover:bg-surface-hover transition-colors rounded-lg cursor-pointer"
                         >
                           <span className="text-subtle font-semibold w-10 shrink-0">R{log.round}</span>
-                          <span className="flex-1 min-w-0">
+                          <span className="flex items-center gap-1 flex-1 min-w-0">
+                            <BitcoinLogo size={14} />
                             <span className="text-foreground/70">${Math.round(log.entry || 0).toLocaleString()}</span>
-                            <span className="text-subtle mx-1">→</span>
+                            <span className="text-subtle">→</span>
                             <span className="text-foreground/70">${Math.round(log.exit || 0).toLocaleString()}</span>
                             {' '}
                             <span className={`font-semibold ${color}`}>{sign}${Math.abs(log.change || 0).toFixed(0)}</span>
