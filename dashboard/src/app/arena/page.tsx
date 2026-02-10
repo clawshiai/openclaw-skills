@@ -728,7 +728,7 @@ export default function ArenaPage() {
                       <div key={name} className="flex items-center gap-1.5 text-sm">
                         {AGENT_ICONS[name]}
                         <span className="font-medium" style={{ color }}>{name}</span>
-                        <span className="text-yellow-500">⏳</span>
+                        <div className="w-3 h-3 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
                       </div>
                     );
                   })}
@@ -922,7 +922,7 @@ export default function ArenaPage() {
               <h3 className="text-sm font-heading font-semibold text-muted uppercase tracking-wider">
                 War Performance
               </h3>
-              <div className="flex items-center gap-4">
+              <div className="hidden sm:flex items-center gap-4">
                 {AGENTS.map(name => (
                   <div key={name} className="flex items-center gap-1.5 text-xs">
                     {AGENT_ICONS[name]}
