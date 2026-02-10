@@ -700,8 +700,42 @@ export default function ArenaPage() {
                   })}
                 </div>
               </div>
+            ) : live.status === 'started' ? (
+              /* ── Round Starting ── */
+              <div className="space-y-3">
+                {/* Top: 2 columns */}
+                <div className="flex items-center justify-between gap-4">
+                  {/* Left: BTC placeholder */}
+                  <div className="flex items-center gap-3">
+                    <BitcoinLogo size={28} />
+                    <div className="text-xl sm:text-2xl font-bold font-heading tabular-nums text-muted-foreground animate-pulse">
+                      $--,---.--
+                    </div>
+                  </div>
+                  {/* Right: Starting indicator */}
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-teal-400 border-t-transparent rounded-full animate-spin" />
+                    <span className="font-heading font-bold text-teal-400">
+                      Starting Round {live.round}...
+                    </span>
+                  </div>
+                </div>
+                {/* Bottom: Agents waiting */}
+                <div className="flex items-center justify-center gap-4 sm:gap-6 pt-2 border-t border-white/10">
+                  {AGENTS.map(name => {
+                    const color = AGENT_COLORS[name];
+                    return (
+                      <div key={name} className="flex items-center gap-1.5 text-sm">
+                        {AGENT_ICONS[name]}
+                        <span className="font-medium" style={{ color }}>{name}</span>
+                        <span className="text-yellow-500">⏳</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             ) : (
-              /* ── Phases: data / phase1 / started ── */
+              /* ── Phases: data / phase1 ── */
               <div className="flex flex-col sm:flex-row items-center gap-4">
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <BitcoinLogo size={32} />
