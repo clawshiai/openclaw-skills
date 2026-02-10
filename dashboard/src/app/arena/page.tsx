@@ -560,81 +560,67 @@ export default function ArenaPage() {
                 </div>
               </div>
             ) : live.status === 'phase2' || live.status === 'majority' || live.status === 'countdown' ? (
-              /* ── Countdown: two-column ── */
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                {/* Left: BTC price */}
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  <BitcoinLogo size={32} />
-                  <div>
-                    <div className="text-2xl font-bold font-heading tabular-nums">${markPrice.toLocaleString()}</div>
-                    {entryPrice > 0 && markPrice > 0 && markPrice !== entryPrice && (
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className={`text-sm font-semibold tabular-nums ${markPrice >= entryPrice ? 'text-green-500' : 'text-red-400'}`}>
-                          {markPrice >= entryPrice ? '\u25B2' : '\u25BC'} {markPrice >= entryPrice ? '+' : ''}{(markPrice - entryPrice).toFixed(2)}
+              /* ── Countdown: compact single-row ── */
+              <div className="flex items-center gap-3 sm:gap-4">
+                {/* BTC price + delta */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <BitcoinLogo size={24} />
+                  <span className="text-lg sm:text-xl font-bold font-heading tabular-nums">
+                    ${markPrice.toLocaleString()}
+                  </span>
+                  {entryPrice > 0 && markPrice !== entryPrice && (
+                    <span className={`text-xs sm:text-sm font-semibold tabular-nums ${
+                      markPrice >= entryPrice ? 'text-green-500' : 'text-red-400'
+                    }`}>
+                      {markPrice >= entryPrice ? '\u25B2' : '\u25BC'}
+                      {markPrice >= entryPrice ? '+' : ''}{(markPrice - entryPrice).toFixed(2)}
+                    </span>
+                  )}
+                </div>
+
+                {/* Agent predictions — colored dots with arrows */}
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  {AGENTS.map(name => {
+                    const pred = allPredictions[name];
+                    if (!pred) return null;
+                    const color = AGENT_COLORS[name];
+                    const isUp = pred.direction === 'UP';
+                    return (
+                      <div key={name} className="flex items-center gap-0.5" title={`${name}: ${pred.direction} ${(pred.confidence * 100).toFixed(0)}%`}>
+                        <span className="w-2 h-2 rounded-full" style={{ background: color }} />
+                        <span className={`text-sm sm:text-base font-bold ${isUp ? 'text-green-500' : 'text-red-400'}`}>
+                          {isUp ? '\u25B2' : '\u25BC'}
                         </span>
                       </div>
-                    )}
-                  </div>
+                    );
+                  })}
                 </div>
 
-                {/* Right: agents + timer + progress */}
-                <div className="flex-1 w-full sm:w-auto space-y-2">
-                  {/* Agent predictions + timer */}
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 sm:gap-3">
-                      {AGENTS.map(name => {
-                        const pred = allPredictions[name];
-                        if (!pred) return null;
-                        const color = AGENT_COLORS[name];
-                        const isUp = pred.direction === 'UP';
-                        return (
-                          <div key={name} className="flex items-center gap-1.5 text-xs sm:text-sm">
-                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
-                            <span className={`font-bold text-base ${isUp ? 'text-green-500' : 'text-red-400'}`}>
-                              {isUp ? '\u25B2' : '\u25BC'}
-                            </span>
-                            <span className="text-muted-foreground tabular-nums font-medium">{(pred.confidence * 100).toFixed(0)}%</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Timer */}
-                    {countdownSec != null && countdownSec > 0 ? (
-                      <span className={`font-heading text-2xl font-bold tabular-nums ${
-                        countdownSec <= 10 ? 'text-red-400' : countdownSec <= 30 ? 'text-orange-400' : 'text-yellow-400'
-                      }`}>
-                        {Math.floor(countdownSec / 60)}:{(countdownSec % 60).toString().padStart(2, '0')}
-                      </span>
-                    ) : (
-                      <span className="text-yellow-400 text-sm animate-pulse">waiting...</span>
-                    )}
-                  </div>
-
-                  {/* Progress bar */}
-                  {countdownSec != null && countdownTotal > 0 && (
-                    <div className="h-1 bg-white/5 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-1000 ease-linear"
-                        style={{
-                          width: `${Math.max(0, (countdownSec / countdownTotal)) * 100}%`,
-                          background: countdownSec > 30
-                            ? 'linear-gradient(90deg, #facc15, #eab308)'
-                            : countdownSec > 10
-                              ? 'linear-gradient(90deg, #f59e0b, #ef4444)'
-                              : '#ef4444',
-                        }}
-                      />
-                    </div>
-                  )}
-
-                  {/* Entry price */}
-                  {entryPrice > 0 && (
-                    <div className="text-xs text-muted-foreground">
-                      Entry <span className="text-foreground/70 tabular-nums">${entryPrice.toLocaleString()}</span>
-                    </div>
-                  )}
+                {/* Progress bar — inline, flex-grow */}
+                <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden min-w-[60px]">
+                  <div
+                    className="h-full rounded-full transition-all duration-1000 ease-linear"
+                    style={{
+                      width: `${Math.max(0, (countdownSec ?? 0) / countdownTotal * 100)}%`,
+                      background: (countdownSec ?? 0) > 30
+                        ? 'linear-gradient(90deg, #facc15, #eab308)'
+                        : (countdownSec ?? 0) > 10
+                          ? 'linear-gradient(90deg, #f59e0b, #ef4444)'
+                          : '#ef4444',
+                    }}
+                  />
                 </div>
+
+                {/* Timer */}
+                <span className={`font-heading text-xl sm:text-2xl font-bold tabular-nums flex-shrink-0 ${
+                  (countdownSec ?? 0) <= 10 ? 'text-red-400'
+                    : (countdownSec ?? 0) <= 30 ? 'text-orange-400'
+                    : 'text-yellow-400'
+                }`}>
+                  {countdownSec != null && countdownSec > 0
+                    ? `${Math.floor(countdownSec / 60)}:${(countdownSec % 60).toString().padStart(2, '0')}`
+                    : '--:--'}
+                </span>
               </div>
             ) : (
               /* ── Phases: data / phase1 / started ── */
