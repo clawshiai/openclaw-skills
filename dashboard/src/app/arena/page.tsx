@@ -560,67 +560,72 @@ export default function ArenaPage() {
                 </div>
               </div>
             ) : live.status === 'phase2' || live.status === 'majority' || live.status === 'countdown' ? (
-              /* ── Countdown: compact single-row ── */
-              <div className="flex items-center gap-3 sm:gap-4">
-                {/* BTC price + delta */}
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <BitcoinLogo size={24} />
-                  <span className="text-lg sm:text-xl font-bold font-heading tabular-nums">
-                    ${markPrice.toLocaleString()}
-                  </span>
-                  {entryPrice > 0 && markPrice !== entryPrice && (
-                    <span className={`text-xs sm:text-sm font-semibold tabular-nums ${
-                      markPrice >= entryPrice ? 'text-green-500' : 'text-red-400'
+              /* ── Countdown: 2-column + agents row ── */
+              <div className="space-y-3">
+                {/* Top: 2 columns */}
+                <div className="flex items-center justify-between gap-4">
+                  {/* Left: BTC price + delta */}
+                  <div className="flex items-center gap-3">
+                    <BitcoinLogo size={28} />
+                    <div>
+                      <div className="text-xl sm:text-2xl font-bold font-heading tabular-nums">
+                        ${markPrice.toLocaleString()}
+                      </div>
+                      {entryPrice > 0 && markPrice !== entryPrice && (
+                        <div className={`text-sm font-semibold tabular-nums ${
+                          markPrice >= entryPrice ? 'text-green-500' : 'text-red-400'
+                        }`}>
+                          {markPrice >= entryPrice ? '\u25B2' : '\u25BC'} {markPrice >= entryPrice ? '+' : ''}{(markPrice - entryPrice).toFixed(2)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right: Timer + progress */}
+                  <div className="flex flex-col items-end gap-1.5">
+                    <span className={`font-heading text-2xl sm:text-3xl font-bold tabular-nums ${
+                      (countdownSec ?? 0) <= 10 ? 'text-red-400'
+                        : (countdownSec ?? 0) <= 30 ? 'text-orange-400'
+                        : 'text-yellow-400'
                     }`}>
-                      {markPrice >= entryPrice ? '\u25B2' : '\u25BC'}
-                      {markPrice >= entryPrice ? '+' : ''}{(markPrice - entryPrice).toFixed(2)}
+                      {countdownSec != null && countdownSec > 0
+                        ? `${Math.floor(countdownSec / 60)}:${(countdownSec % 60).toString().padStart(2, '0')}`
+                        : '--:--'}
                     </span>
-                  )}
+                    <div className="w-32 sm:w-40 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-1000 ease-linear"
+                        style={{
+                          width: `${Math.max(0, (countdownSec ?? 0) / countdownTotal * 100)}%`,
+                          background: (countdownSec ?? 0) > 30
+                            ? 'linear-gradient(90deg, #facc15, #eab308)'
+                            : (countdownSec ?? 0) > 10
+                              ? 'linear-gradient(90deg, #f59e0b, #ef4444)'
+                              : '#ef4444',
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                {/* Agent predictions — colored dots with arrows */}
-                <div className="flex items-center gap-1.5 sm:gap-2">
+                {/* Bottom: Agent predictions full width */}
+                <div className="flex items-center justify-center gap-4 sm:gap-6 pt-2 border-t border-white/10">
                   {AGENTS.map(name => {
                     const pred = allPredictions[name];
                     if (!pred) return null;
                     const color = AGENT_COLORS[name];
                     const isUp = pred.direction === 'UP';
                     return (
-                      <div key={name} className="flex items-center gap-0.5" title={`${name}: ${pred.direction} ${(pred.confidence * 100).toFixed(0)}%`}>
-                        <span className="w-2 h-2 rounded-full" style={{ background: color }} />
-                        <span className={`text-sm sm:text-base font-bold ${isUp ? 'text-green-500' : 'text-red-400'}`}>
+                      <div key={name} className="flex items-center gap-1.5 text-sm">
+                        <span className="font-medium" style={{ color }}>{name}</span>
+                        <span className={`font-bold ${isUp ? 'text-green-500' : 'text-red-400'}`}>
                           {isUp ? '\u25B2' : '\u25BC'}
                         </span>
+                        <span className="text-muted-foreground tabular-nums">{(pred.confidence * 100).toFixed(0)}%</span>
                       </div>
                     );
                   })}
                 </div>
-
-                {/* Progress bar — inline, flex-grow */}
-                <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden min-w-[60px]">
-                  <div
-                    className="h-full rounded-full transition-all duration-1000 ease-linear"
-                    style={{
-                      width: `${Math.max(0, (countdownSec ?? 0) / countdownTotal * 100)}%`,
-                      background: (countdownSec ?? 0) > 30
-                        ? 'linear-gradient(90deg, #facc15, #eab308)'
-                        : (countdownSec ?? 0) > 10
-                          ? 'linear-gradient(90deg, #f59e0b, #ef4444)'
-                          : '#ef4444',
-                    }}
-                  />
-                </div>
-
-                {/* Timer */}
-                <span className={`font-heading text-xl sm:text-2xl font-bold tabular-nums flex-shrink-0 ${
-                  (countdownSec ?? 0) <= 10 ? 'text-red-400'
-                    : (countdownSec ?? 0) <= 30 ? 'text-orange-400'
-                    : 'text-yellow-400'
-                }`}>
-                  {countdownSec != null && countdownSec > 0
-                    ? `${Math.floor(countdownSec / 60)}:${(countdownSec % 60).toString().padStart(2, '0')}`
-                    : '--:--'}
-                </span>
               </div>
             ) : (
               /* ── Phases: data / phase1 / started ── */
