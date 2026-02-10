@@ -922,11 +922,11 @@ export default function ArenaPage() {
               <h3 className="text-sm font-heading font-semibold text-muted uppercase tracking-wider">
                 War Performance
               </h3>
-              <div className="hidden sm:flex items-center gap-4">
+              <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
                 {AGENTS.map(name => (
-                  <div key={name} className="flex items-center gap-1.5 text-xs">
+                  <div key={name} className="flex items-center gap-1 text-xs">
                     {AGENT_ICONS[name]}
-                    <span className="text-muted-foreground">{name}</span>
+                    <span className="text-muted-foreground hidden sm:inline">{name}</span>
                   </div>
                 ))}
               </div>
