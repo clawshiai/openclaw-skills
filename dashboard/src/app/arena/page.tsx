@@ -897,9 +897,10 @@ export default function ArenaPage() {
                     )}
 
                     {!score && pred && (
-                      <div className="flex items-center justify-center gap-2 py-1.5 rounded-lg text-xs font-bold mb-3 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 animate-pulse">
-                        <span>POSITION OPEN</span>
-                        <span className="flex items-center gap-1 opacity-80">
+                      <div className="flex items-center justify-center gap-2 py-1.5 rounded-lg text-xs font-bold mb-3 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
+                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+                        <span>STAKE:</span>
+                        <span className="flex items-center gap-1">
                           <UsdcLogo size={12} />
                           {(balance * pred.confidence * 0.05).toFixed(2)}
                         </span>
