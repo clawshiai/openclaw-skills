@@ -571,12 +571,12 @@ export default function ArenaPage() {
                       <div className="text-xl sm:text-2xl font-bold font-heading tabular-nums">
                         ${markPrice.toLocaleString()}
                       </div>
-                      {entryPrice > 0 && markPrice !== entryPrice && (
+                      {entryPrice > 0 && (
                         <div className="flex items-center gap-2">
                           <span className={`text-sm font-semibold tabular-nums ${
                             markPrice >= entryPrice ? 'text-green-500' : 'text-red-400'
                           }`}>
-                            {markPrice >= entryPrice ? '\u25B2' : '\u25BC'} {markPrice >= entryPrice ? '+' : ''}${Math.abs(markPrice - entryPrice).toFixed(2)}
+                            {markPrice >= entryPrice ? '\u25B2' : '\u25BC'} {markPrice >= entryPrice ? '+' : ''}{markPrice !== entryPrice ? '$' : ''}{Math.abs(markPrice - entryPrice).toFixed(2)}
                           </span>
                           <span className={`text-xs font-medium px-1.5 py-0.5 rounded tabular-nums ${
                             markPrice >= entryPrice ? 'bg-green-500/15 text-green-500' : 'bg-red-400/15 text-red-400'
@@ -624,6 +624,7 @@ export default function ArenaPage() {
                     const isUp = pred.direction === 'UP';
                     return (
                       <div key={name} className="flex items-center gap-1.5 text-sm">
+                        {AGENT_ICONS[name]}
                         <span className="font-medium" style={{ color }}>{name}</span>
                         <span className={`font-bold ${isUp ? 'text-green-500' : 'text-red-400'}`}>
                           {isUp ? '\u25B2' : '\u25BC'}
