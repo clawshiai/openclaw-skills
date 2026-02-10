@@ -494,105 +494,132 @@ export default function ArenaPage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* ═══ Battle Header ═══ */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-3">
-            <Zap className="w-7 h-7 text-teal-400" />
-            <h1 className="text-2xl sm:text-3xl font-bold font-heading">Agent War</h1>
-            <div className={`flex items-center gap-2 px-3 py-1 rounded-full border ${
-              isLive ? 'bg-teal-600/10 border-teal-600/20' : 'bg-surface border-border'
-            }`}>
-              <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-teal-400 animate-pulse' : 'bg-subtle'}`} />
-              <span className={`text-xs font-semibold ${isLive ? 'text-teal-400' : 'text-subtle'}`}>
-                {isLive ? 'LIVE' : 'OFFLINE'}
-              </span>
-            </div>
-            {isLive && (
-              <span className="text-sm text-muted-foreground font-heading">
-                Round {live.round}/{totalDisplay}
-              </span>
-            )}
+        <div className="flex items-center gap-3 mb-4">
+          <Zap className="w-7 h-7 text-teal-400" />
+          <h1 className="text-2xl sm:text-3xl font-bold font-heading">Agent War</h1>
+          <div className={`flex items-center gap-2 px-3 py-1 rounded-full border ${
+            isLive ? 'bg-teal-600/10 border-teal-600/20' : 'bg-surface border-border'
+          }`}>
+            <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-teal-400 animate-pulse' : 'bg-subtle'}`} />
+            <span className={`text-xs font-semibold ${isLive ? 'text-teal-400' : 'text-subtle'}`}>
+              {isLive ? 'LIVE' : 'OFFLINE'}
+            </span>
           </div>
           {isLive && (
-            <div className="flex items-center gap-2">
-              <BitcoinLogo size={24} />
-              <span className="text-xl sm:text-2xl font-bold font-heading">
-                ${markPrice.toLocaleString()}
-              </span>
-              {live.result && (
-                <span className={`text-sm font-semibold ${live.result.change >= 0 ? 'text-green-500' : 'text-red-400'}`}>
-                  {live.result.change >= 0 ? '+' : ''}${live.result.change.toFixed(2)}
-                </span>
-              )}
-            </div>
+            <span className="text-sm text-muted-foreground font-heading">
+              Round {live.round}/{totalDisplay}
+            </span>
           )}
         </div>
 
         {/* ═══ Battle Status ═══ */}
         {isLive && (
-          <div className={`rounded-xl p-3 sm:p-4 mb-5 text-center transition-all duration-300 border ${
+          <div className={`rounded-xl p-4 sm:p-5 mb-5 transition-all duration-300 border ${
             live.result
               ? live.result.actual === 'UP'
                 ? 'border-green-500/40 bg-green-600/10'
                 : 'border-red-400/40 bg-red-600/10'
-              : 'border-teal-600/20 bg-teal-600/5'
+              : 'border-border bg-surface'
           }`}>
-            <div className="font-heading font-bold text-base sm:text-lg">
-              {live.result ? (
-                (() => {
-                  const winners = (live.scores || []).filter(s => s.correct).map(s => mapName(s.name));
-                  const losers = (live.scores || []).filter(s => !s.correct).map(s => mapName(s.name));
-                  if (winners.length === 1) {
+            {live.result ? (
+              /* ── Result ── */
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <BitcoinLogo size={32} />
+                  <div>
+                    <div className="text-2xl font-bold font-heading tabular-nums">${markPrice.toLocaleString()}</div>
+                    <span className={`text-sm font-semibold ${live.result.change >= 0 ? 'text-green-500' : 'text-red-400'}`}>
+                      {live.result.change >= 0 ? '+' : ''}${live.result.change.toFixed(2)} ({live.result.changePct >= 0 ? '+' : ''}{live.result.changePct.toFixed(4)}%)
+                    </span>
+                  </div>
+                </div>
+                <div className="sm:ml-auto text-center sm:text-right font-heading font-bold text-base sm:text-lg">
+                  {(() => {
+                    const winners = (live.scores || []).filter(s => s.correct).map(s => mapName(s.name));
+                    const losers = (live.scores || []).filter(s => !s.correct).map(s => mapName(s.name));
+                    if (winners.length === 1) {
+                      return (
+                        <>
+                          <span className="text-teal-400">{winners[0]}</span>
+                          {' wins! '}
+                          <span className={live.result.actual === 'UP' ? 'text-green-500' : 'text-red-400'}>
+                            BTC went {live.result.actual}
+                          </span>
+                        </>
+                      );
+                    }
                     return (
                       <>
-                        <span className="text-teal-400">{winners[0]}</span>
-                        {' wins Round '}{live.round}{'! '}
-                        <span className={live.result.actual === 'UP' ? 'text-green-500' : 'text-red-400'}>
-                          BTC went {live.result.actual}
-                        </span>
+                        <span className="text-green-500">{winners.join(' & ')}</span>
+                        {' win, '}
+                        <span className="text-red-400">{losers.join(' & ')}</span>
+                        {losers.length === 1 ? ' loses' : ' lose'}
                       </>
                     );
-                  }
-                  return (
-                    <>
-                      {'Round '}{live.round}{': '}
-                      <span className="text-green-500">{winners.join(' & ')}</span>
-                      {' win, '}
-                      <span className="text-red-400">{losers.join(' & ')}</span>
-                      {losers.length === 1 ? ' loses' : ' lose'}
-                    </>
-                  );
-                })()
-              ) : live.status === 'data' ? (
-                <span className="text-teal-400">Phase 1: GPT-4o &amp; Gemini 2.5 analyzing market data...</span>
-              ) : live.status === 'phase1' ? (
-                <span className="text-purple-400">Phase 2: Opus 4.6 counter-attacking with contrarian analysis...</span>
-              ) : live.status === 'phase2' || live.status === 'majority' || live.status === 'countdown' ? (
-                <div className="space-y-3">
-                  {/* Timer headline */}
-                  <div className="flex items-center justify-center gap-3">
-                    {countdownSec != null && countdownSec > 0 ? (
-                      <>
-                        <span className="text-yellow-400 font-heading text-2xl font-bold tabular-nums">
-                          {Math.floor(countdownSec / 60)}:{(countdownSec % 60).toString().padStart(2, '0')}
+                  })()}
+                </div>
+              </div>
+            ) : live.status === 'phase2' || live.status === 'majority' || live.status === 'countdown' ? (
+              /* ── Countdown: two-column ── */
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                {/* Left: BTC price */}
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <BitcoinLogo size={32} />
+                  <div>
+                    <div className="text-2xl font-bold font-heading tabular-nums">${markPrice.toLocaleString()}</div>
+                    {entryPrice > 0 && markPrice > 0 && markPrice !== entryPrice && (
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className={`text-sm font-semibold tabular-nums ${markPrice >= entryPrice ? 'text-green-500' : 'text-red-400'}`}>
+                          {markPrice >= entryPrice ? '\u25B2' : '\u25BC'} {markPrice >= entryPrice ? '+' : ''}{(markPrice - entryPrice).toFixed(2)}
                         </span>
-                        <span className="text-muted-foreground text-sm">until verdict</span>
-                      </>
-                    ) : (
-                      <span className="text-yellow-400 animate-pulse">
-                        Predictions locked &mdash; awaiting BTC verdict...
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right: agents + timer + progress */}
+                <div className="flex-1 w-full sm:w-auto space-y-2">
+                  {/* Agent predictions + timer */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      {AGENTS.map(name => {
+                        const pred = allPredictions[name];
+                        if (!pred) return null;
+                        const color = AGENT_COLORS[name];
+                        const isUp = pred.direction === 'UP';
+                        return (
+                          <div key={name} className="flex items-center gap-1.5 text-xs sm:text-sm">
+                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
+                            <span className={`font-bold text-base ${isUp ? 'text-green-500' : 'text-red-400'}`}>
+                              {isUp ? '\u25B2' : '\u25BC'}
+                            </span>
+                            <span className="text-muted-foreground tabular-nums font-medium">{(pred.confidence * 100).toFixed(0)}%</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Timer */}
+                    {countdownSec != null && countdownSec > 0 ? (
+                      <span className={`font-heading text-2xl font-bold tabular-nums ${
+                        countdownSec <= 10 ? 'text-red-400' : countdownSec <= 30 ? 'text-orange-400' : 'text-yellow-400'
+                      }`}>
+                        {Math.floor(countdownSec / 60)}:{(countdownSec % 60).toString().padStart(2, '0')}
                       </span>
+                    ) : (
+                      <span className="text-yellow-400 text-sm animate-pulse">waiting...</span>
                     )}
                   </div>
 
                   {/* Progress bar */}
                   {countdownSec != null && countdownTotal > 0 && (
-                    <div className="mx-auto max-w-md h-1.5 bg-white/10 rounded-full overflow-hidden">
+                    <div className="h-1 bg-white/5 rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all duration-1000 ease-linear"
                         style={{
-                          width: `${Math.max(0, (1 - countdownSec / countdownTotal)) * 100}%`,
+                          width: `${Math.max(0, (countdownSec / countdownTotal)) * 100}%`,
                           background: countdownSec > 30
-                            ? 'linear-gradient(90deg, #facc15, #f59e0b)'
+                            ? 'linear-gradient(90deg, #facc15, #eab308)'
                             : countdownSec > 10
                               ? 'linear-gradient(90deg, #f59e0b, #ef4444)'
                               : '#ef4444',
@@ -601,55 +628,32 @@ export default function ArenaPage() {
                     </div>
                   )}
 
-                  {/* Majority consensus */}
-                  {live.majority && live.votes && (
-                    <div className="flex items-center justify-center gap-3 text-sm">
-                      <span className="text-muted-foreground">Consensus:</span>
-                      <span className={`font-bold ${live.majority === 'UP' ? 'text-green-500' : 'text-red-400'}`}>
-                        {live.majority === 'UP' ? '\u25B2' : '\u25BC'} {live.majority}
-                      </span>
-                      <span className="text-muted-foreground text-xs">
-                        ({live.votes.UP} UP vs {live.votes.DOWN} DOWN)
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Agent bets row */}
-                  {Object.keys(allPredictions).length > 0 && (
-                    <div className="flex flex-wrap items-center justify-center gap-3 text-xs">
-                      {AGENTS.map(name => {
-                        const pred = allPredictions[name];
-                        if (!pred) return null;
-                        const color = AGENT_COLORS[name];
-                        const isUp = pred.direction === 'UP';
-                        return (
-                          <span key={name} className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/5 border border-white/10">
-                            <span style={{ color }} className="font-semibold">{name}</span>
-                            <span className={`font-bold ${isUp ? 'text-green-500' : 'text-red-400'}`}>
-                              {isUp ? '\u25B2' : '\u25BC'}
-                            </span>
-                            <span className="text-muted-foreground">{(pred.confidence * 100).toFixed(0)}%</span>
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* Live price delta */}
-                  {entryPrice > 0 && markPrice > 0 && entryPrice !== markPrice && (
-                    <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                      <span>Entry ${entryPrice.toLocaleString()}</span>
-                      <span>&rarr;</span>
-                      <span className={`font-semibold ${markPrice >= entryPrice ? 'text-green-500' : 'text-red-400'}`}>
-                        ${markPrice.toLocaleString()} ({markPrice >= entryPrice ? '+' : ''}{(markPrice - entryPrice).toFixed(2)})
-                      </span>
+                  {/* Entry price */}
+                  {entryPrice > 0 && (
+                    <div className="text-xs text-muted-foreground">
+                      Entry <span className="text-foreground/70 tabular-nums">${entryPrice.toLocaleString()}</span>
                     </div>
                   )}
                 </div>
-              ) : (
-                <span className="text-muted-foreground">{statusText || 'Preparing battlefield...'}</span>
-              )}
-            </div>
+              </div>
+            ) : (
+              /* ── Phases: data / phase1 / started ── */
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <BitcoinLogo size={32} />
+                  <div className="text-2xl font-bold font-heading tabular-nums">${markPrice.toLocaleString()}</div>
+                </div>
+                <div className="sm:ml-auto font-heading font-bold text-base sm:text-lg">
+                  {live.status === 'data' ? (
+                    <span className="text-teal-400">Phase 1: GPT-4o &amp; Gemini 2.5 analyzing...</span>
+                  ) : live.status === 'phase1' ? (
+                    <span className="text-purple-400">Phase 2: Opus 4.6 counter-attacking...</span>
+                  ) : (
+                    <span className="text-muted-foreground">{statusText || 'Preparing battlefield...'}</span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
