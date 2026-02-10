@@ -29,8 +29,12 @@ const BitcoinLogo = ({ size = 28 }: { size?: number }) => (
 
 const UsdcLogo = ({ size = 24 }: { size?: number }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 32 32">
-    <circle cx="16" cy="16" r="16" fill="#2775CA"/>
-    <path fill="#fff" d="M16 6c5.523 0 10 4.477 10 10s-4.477 10-10 10S6 21.523 6 16 10.477 6 16 6zm0 1.5a8.5 8.5 0 100 17 8.5 8.5 0 000-17zm.75 3v.97c1.206.164 2.125.857 2.375 1.78h-1.5c-.188-.394-.563-.656-1.063-.75-.687-.125-1.375.063-1.687.5-.25.344-.25.844.062 1.156.313.313.875.5 1.438.594.625.094 1.25.25 1.75.594.563.375.875.969.875 1.656 0 .938-.563 1.719-1.5 2.031v1.219h-1.5v-1.156c-1.125-.188-1.937-.875-2.25-1.844h1.5c.188.438.625.75 1.188.844.75.125 1.437-.063 1.75-.5.25-.344.25-.813-.063-1.156-.312-.344-.875-.531-1.437-.625-.625-.094-1.25-.25-1.75-.594-.563-.375-.875-.969-.875-1.656 0-.906.563-1.688 1.437-2v-1.063h1.25z"/>
+    <circle cx="16" cy="16" r="14.5" fill="#2775CA"/>
+    <path fill="#fff" d="M17.22,21.5h-2.44c-1.53,0-2.78-1.25-2.78-2.78V18.5c0-0.28,0.22-0.5,0.5-0.5s0.5,0.22,0.5,0.5v0.22c0,0.98,0.8,1.78,1.78,1.78h2.44c0.98,0,1.78-0.8,1.78-1.78c0-0.79-0.53-1.49-1.29-1.71l-3.69-1.05C12.83,15.61,12,14.51,12,13.28c0-1.53,1.25-2.78,2.78-2.78h2.44c1.53,0,2.78,1.25,2.78,2.78v0.22c0-0.28-0.22,0.5-0.5,0.5S19,13.78,19,13.5v-0.22c0-0.98-0.8-1.78-1.78-1.78h-2.44c-0.98,0-1.78,0.8-1.78,1.78c0,0.79,0.53,1.49,1.29,1.71l3.69,1.05c1.19,0.34,2.02,1.44,2.02,2.67C20,20.25,18.75,21.5,17.22,21.5z"/>
+    <path fill="#fff" d="M16,23.5c-0.28,0-0.5-0.22-0.5-0.5v-2c0-0.28,0.22-0.5,0.5-0.5s0.5,0.22,0.5,0.5v2C16.5,23.28,16.28,23.5,16,23.5z"/>
+    <path fill="#fff" d="M16,11.5c-0.28,0-0.5-0.22-0.5-0.5V9c0-0.28,0.22-0.5,0.5-0.5s0.5,0.22,0.5,0.5v2C16.5,11.28,16.28,11.5,16,11.5z"/>
+    <path fill="#fff" d="M12.5,26.39c-0.06,0-0.11-0.01-0.17-0.03C7.95,24.81,5,20.64,5,16s2.95-8.81,7.33-10.36c0.26-0.09,0.54,0.04,0.64,0.3c0.09,0.26-0.04,0.55-0.3,0.64C8.68,7.99,6,11.78,6,16s2.68,8.01,6.67,9.42c0.26,0.09,0.4,0.38,0.3,0.64C12.9,26.26,12.71,26.39,12.5,26.39z"/>
+    <path fill="#fff" d="M19.5,26.39c-0.21,0-0.4-0.13-0.47-0.33c-0.09-0.26,0.04-0.55,0.3-0.64C23.32,24.01,26,20.22,26,16s-2.68-8.01-6.67-9.42c-0.26-0.09-0.4-0.38-0.3-0.64c0.09-0.26,0.38-0.4,0.64-0.3C24.05,7.19,27,11.36,27,16s-2.95,8.81-7.33,10.36C19.61,26.38,19.56,26.39,19.5,26.39z"/>
   </svg>
 );
 
@@ -822,8 +826,8 @@ export default function ArenaPage() {
                     {/* Virtual Balance */}
                     <div className="mb-4">
                       <div className="flex items-center gap-2 text-3xl font-heading font-bold text-foreground">
-                        <UsdcLogo size={24} />
-                        ${balance.toFixed(0)}
+                        <UsdcLogo size={28} />
+                        {balance.toFixed(0)}
                       </div>
                       <div className={`text-sm font-semibold ${pnlTotal >= 0 ? 'text-green-500' : 'text-red-400'}`}>
                         {pnlTotal >= 0 ? '+' : ''}{pnlTotal.toFixed(2)} ({pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%)
@@ -893,8 +897,12 @@ export default function ArenaPage() {
                     )}
 
                     {!score && pred && (
-                      <div className="text-center py-1.5 rounded-lg text-xs font-bold mb-3 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 animate-pulse">
-                        POSITION OPEN
+                      <div className="flex items-center justify-center gap-2 py-1.5 rounded-lg text-xs font-bold mb-3 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 animate-pulse">
+                        <span>POSITION OPEN</span>
+                        <span className="flex items-center gap-1 opacity-80">
+                          <UsdcLogo size={12} />
+                          {(balance * pred.confidence * 0.05).toFixed(2)}
+                        </span>
                       </div>
                     )}
 
