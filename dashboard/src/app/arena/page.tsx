@@ -918,13 +918,13 @@ export default function ArenaPage() {
         {/* ═══ War Performance Chart ═══ */}
         {balanceHistory.length > 1 && (
           <div className="bg-surface border border-border rounded-xl p-4 sm:p-5 mb-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-heading font-semibold text-muted uppercase tracking-wider">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+              <h3 className="text-sm font-heading font-semibold text-muted uppercase tracking-wider flex-shrink-0">
                 War Performance
               </h3>
-              <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
+              <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
                 {AGENTS.map(name => (
-                  <div key={name} className="flex items-center gap-1 text-xs">
+                  <div key={name} className="flex items-center gap-1 text-xs" title={name}>
                     {AGENT_ICONS[name]}
                     <span className="text-muted-foreground hidden sm:inline">{name}</span>
                   </div>
