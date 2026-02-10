@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { Search, X, Menu, TrendingUp, Trophy, Lightbulb, BookOpen, Terminal, Bot, FileCode, Activity, ExternalLink, Briefcase } from 'lucide-react';
+import { Search, X, Menu, TrendingUp, Trophy, Lightbulb, BookOpen, Terminal, Bot, FileCode, Activity, ExternalLink, Briefcase, Zap } from 'lucide-react';
 import { Market, getMarkets } from '@/lib/api';
 import { ThemeToggle } from './ThemeToggle';
 import { LanguageToggle } from './LanguageToggle';
@@ -185,6 +185,7 @@ export function Header() {
             >
               {t('nav.markets')}
             </Link>
+            {/* Arena — hidden from menu, still accessible via /arena URL */}
             {/* Portfolio link - only when connected */}
             {isConnected && (
               <Link
@@ -318,6 +319,8 @@ export function Header() {
                 <TrendingUp size={14} className="text-muted-foreground" />
                 {t('nav.markets')}
               </Link>
+
+              {/* Arena — hidden from menu, still accessible via /arena URL */}
 
               {/* Portfolio link - only when connected */}
               {isConnected && (
