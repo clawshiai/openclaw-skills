@@ -227,6 +227,7 @@ export default function ArenaPage() {
   const [countdownTotal, setCountdownTotal] = useState<number>(120);
   const countdownActive = useRef(false);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pricePollerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   /** One-time REST fetch for cold data (history, leaderboard) */
   const fetchHistory = useCallback(async () => {
@@ -392,11 +393,22 @@ export default function ArenaPage() {
           return prev - 1;
         });
       }, 1000);
+      // Poll live mark price every 2 seconds during countdown
+      pricePollerRef.current = setInterval(async () => {
+        try {
+          const res = await fetch('/arena/api/mark');
+          if (res.ok) {
+            const data = await res.json();
+            if (data.price) setLiveMarkPrice(data.price);
+          }
+        } catch {}
+      }, 2000);
     }
 
     function stopTicker() {
       countdownActive.current = false;
       if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
+      if (pricePollerRef.current) { clearInterval(pricePollerRef.current); pricePollerRef.current = null; }
     }
   }, [fetchHistory]);
 
